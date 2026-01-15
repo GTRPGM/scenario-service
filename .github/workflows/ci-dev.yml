@@ -26,6 +26,6 @@ jobs:
       - name: Run Unit Tests
         run: |
           uv sync --dev --frozen
-          uv run pytest
+          uv run pytest || [ $? -eq 5 ]
         env:
           PYTHONPATH: src
