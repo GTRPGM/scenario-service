@@ -1,0 +1,34 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Global application settings using Pydantic V2 Settings."""
+
+    PROJECT_NAME: str = "Scenario Service"
+    VERSION: str = "0.1.0"
+    API_V1_STR: str = "/api/v1"
+
+    # Database Settings
+    DB_USER: str = "postgres"
+    DB_PASSWORD: str = "postgres"
+    DB_PORT: int = 5432
+    DB_NAME: str = "postgres"
+    DB_SERVER: str = "localhost"
+
+    STATE_SERVICE_URL: str = "http://localhost:8030"
+    SCENARIO_SERVICE_URL: str = "http://localhost:8040"
+    RULE_SERVICE_URL: str = "http://localhost:8050"
+    LLM_GATEWAY_URL: str = "http://localhost:8060"
+    LLM_MODEL_NAME: str = "gemini-2.0-flash-lite"
+
+    # Logic Settings
+    SCENARIO_GRAPH_NAME: str = "scenario_graph"
+
+    model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
+
+    @property
+    def database_dsn(self) -> str:
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_SERVER}:{self.DB_PORT}/{self.DB_NAME}"
+
+
+settings = Settings()
