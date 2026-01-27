@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,6 +8,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Scenario Service"
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
+
+    REMOTE_HOST: str = "localhost"
 
     # Database Settings
     DB_USER: str = "postgres"
@@ -25,6 +28,37 @@ class Settings(BaseSettings):
     SCENARIO_GRAPH_NAME: str = "scenario_graph"
 
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
+
+    @model_validator(mode="after")
+    def configure_remote_host(self) -> "Settings":
+        if self.REMOTE_HOST != "localhost":
+            # Update DB Server if it's still default
+            if self.DB_SERVER == "localhost":
+                self.DB_SERVER = self.REMOTE_HOST
+
+            # Update Service URLs by replacing localhost
+            # This preserves the port and protocol
+            if "localhost" in self.STATE_SERVICE_URL:
+                self.STATE_SERVICE_URL = self.STATE_SERVICE_URL.replace(
+                    "localhost", self.REMOTE_HOST
+                )
+
+            if "localhost" in self.SCENARIO_SERVICE_URL:
+                self.SCENARIO_SERVICE_URL = self.SCENARIO_SERVICE_URL.replace(
+                    "localhost", self.REMOTE_HOST
+                )
+
+            if "localhost" in self.RULE_SERVICE_URL:
+                self.RULE_SERVICE_URL = self.RULE_SERVICE_URL.replace(
+                    "localhost", self.REMOTE_HOST
+                )
+
+            if "localhost" in self.LLM_GATEWAY_URL:
+                self.LLM_GATEWAY_URL = self.LLM_GATEWAY_URL.replace(
+                    "localhost", self.REMOTE_HOST
+                )
+
+        return self
 
     @property
     def database_dsn(self) -> str:

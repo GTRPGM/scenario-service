@@ -10,10 +10,13 @@ COMMAND=$1
 shift
 
 case "$COMMAND" in
+    run)
+        uv run uvicorn scenario.main:app --host 0.0.0.0 --port 8040 --reload
+        ;;
     lint)
         echo "Running Ruff Linter & Formatter..."
-        uvx ruff check ../. --fix
-        uvx ruff format ../.
+        uvx ruff check . --fix
+        uvx ruff format .
         ;;
     pre-commit)
         echo "Running Pre-commit hooks..."
