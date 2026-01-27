@@ -3,16 +3,18 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "senario-writer"
+name = "senario-service"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "asyncpg>=0.31.0",
     "fastapi>=0.128.0",
     "httpx>=0.28.1",
     "langchain-core>=1.2.7",
     "langgraph>=1.0.6",
+    "pydantic-settings>=2.12.0",
     "uvicorn>=0.40.0",
 ]
 
@@ -22,7 +24,7 @@ dev = ["pytest>=9.0.2"]
 
 [tool.setuptools]
 package-dir = { "" = "src" }
-packages = ["writer"]
+packages = ["scenario"]
 
 
 [tool.uv]
@@ -50,4 +52,4 @@ indent-style = "space"
 "__init__.py" = ["F401"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["writer"]
+known-first-party = ["scenario"]
