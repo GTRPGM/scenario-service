@@ -18,6 +18,25 @@ env:
   IMAGE_NAME: ${{ vars.REGISTRY }}/${{ vars.ORG_NAME }}/${{ vars.SERVICE_NAME }}
 
 jobs:
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv python install 3.11
+
+      - run: uvx pre-commit run --all-files
+
+      - run: |
+          uv sync --dev --frozen
+          uv run pytest
+        env:
+          PYTHONPATH: src
+
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
@@ -86,6 +105,9 @@ jobs:
           port: 22
           debug: true
           script: |
+            TOKEN=$(/opt/ghcr/ghcr-login.sh)
+            echo "$TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
+
             cd /opt/services/${{ env.SERVICE_NAME }}
 
             export IMAGE_NAME=${{ env.IMAGE_NAME }}:${{ env.TAG }}
