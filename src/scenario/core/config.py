@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "postgres"
     DB_PORT: int = 5432
     DB_NAME: str = "postgres"
-    DB_SERVER: str = "localhost"
+    DB_HOST: str = "localhost"
 
     STATE_SERVICE_URL: str = "http://localhost:8030"
     SCENARIO_SERVICE_URL: str = "http://localhost:8040"
@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     def configure_remote_host(self) -> "Settings":
         if self.REMOTE_HOST != "localhost":
             # Update DB Server if it's still default
-            if self.DB_SERVER == "localhost":
-                self.DB_SERVER = self.REMOTE_HOST
+            if self.DB_HOST == "localhost":
+                self.DB_HOST = self.REMOTE_HOST
 
             # Update Service URLs by replacing localhost
             # This preserves the port and protocol
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
 
     @property
     def database_dsn(self) -> str:
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_SERVER}:{self.DB_PORT}/{self.DB_NAME}"
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 
 settings = Settings()
