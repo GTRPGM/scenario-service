@@ -20,4 +20,5 @@ async def test_init_db_logic(mock_db_handler):
     await init_db(mock_db_handler)
 
     mock_conn.fetchval.assert_called_once()
-    mock_conn.execute.assert_called_once()  # Should call create_graph
+    # Check if create_graph was called among other execute calls
+    mock_conn.execute.assert_any_call("SELECT create_graph('scenario_graph');")
