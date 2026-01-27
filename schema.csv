@@ -1,0 +1,155 @@
+Linux gtrpgm-server 6.1.0-42-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.159-1 (2025-12-30) x86_64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+schema,table_name,column_name,data_type,not_null,default_value
+ag_catalog,ag_graph,graphid,oid,t,
+ag_catalog,ag_graph,name,name,t,
+ag_catalog,ag_graph,namespace,regnamespace,t,
+ag_catalog,ag_label,name,name,t,
+ag_catalog,ag_label,graph,oid,t,
+ag_catalog,ag_label,id,label_id,f,
+ag_catalog,ag_label,kind,label_kind,f,
+ag_catalog,ag_label,relation,regclass,t,
+ag_catalog,ag_label,seq_name,name,t,
+public,abilities,ability_id,integer,t,nextval('abilities_ability_id_seq'::regclass)
+public,abilities,name,character varying(20),t,
+public,abilities,description,text,f,
+public,characters,character_id,integer,t,nextval('backgrounds_bg_id_seq'::regclass)
+public,characters,state,character varying(20),t,
+public,characters,dice_roll,integer,f,
+public,characters,class_name,character varying(50),t,
+public,characters,ability_id,integer,f,
+public,characters,stat_bonus,integer,f,1
+public,characters,starting_item_id,integer,f,
+public,disposition_levels,level_id,integer,t,nextval('disposition_levels_level_id_seq'::regclass)
+public,disposition_levels,level_name,character varying(20),t,
+public,disposition_levels,min_score,integer,t,
+public,disposition_levels,max_score,integer,t,
+public,disposition_levels,price_modifier,"numeric(3,2)",f,1.0
+public,disposition_levels,description,text,f,
+public,enemies,enemy_id,integer,t,nextval('bestiary_mob_id_seq'::regclass)
+public,enemies,name,character varying(50),t,
+public,enemies,base_difficulty,integer,t,
+public,enemies,description,text,f,
+public,enemies,type,character varying(30),f,
+public,enemies,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,enemies,creator,character varying(255),f,'GM'::character varying
+public,enemy_drops,drop_id,integer,t,nextval('enemy_drops_drop_id_seq'::regclass)
+public,enemy_drops,enemy_id,integer,f,
+public,enemy_drops,item_id,integer,f,
+public,enemy_drops,drop_rate,"numeric(5,2)",t,1.0
+public,enemy_drops,min_quantity,integer,f,1
+public,enemy_drops,max_quantity,integer,f,1
+public,enemy_drops,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,enemy_drops,creator,character varying(255),f,'GM'::character varying
+public,generation_logs,gen_id,integer,t,nextval('generation_logs_gen_id_seq'::regclass)
+public,generation_logs,entity_type,character varying(20),t,
+public,generation_logs,generated_enemy_id,integer,f,
+public,generation_logs,generated_item_id,integer,f,
+public,generation_logs,generated_npc_id,integer,f,
+public,generation_logs,prompt_used,text,f,
+public,generation_logs,is_approved,boolean,f,false
+public,generation_logs,rejection_reason,text,f,
+public,generation_logs,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,generation_logs,requested_by,integer,f,
+public,items,item_id,integer,t,nextval('items_item_id_seq'::regclass)
+public,items,item_id,integer,t,nextval('items_item_id_seq'::regclass)
+public,items,name,character varying(50),t,
+public,items,name,character varying(50),t,
+public,items,type,item_category,t,
+public,items,type,item_category,t,
+public,items,effect_value,integer,f,0
+public,items,effect_value,integer,f,0
+public,items,description,text,f,
+public,items,description,text,f,
+public,items,weight,integer,f,1
+public,items,weight,integer,f,1
+public,items,grade,character varying(20),f,
+public,items,grade,character varying(20),f,
+public,items,base_price,integer,f,0
+public,items,base_price,integer,f,0
+public,items,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,items,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,items,creator,character varying(255),f,'GM'::character varying
+public,items,creator,character varying(255),f,'GM'::character varying
+public,npc_inventories,inventory_id,integer,t,nextval('npc_inventories_inventory_id_seq'::regclass)
+public,npc_inventories,npc_id,integer,f,
+public,npc_inventories,item_id,integer,f,
+public,npc_inventories,is_infinite_stock,boolean,f,false
+public,npc_inventories,creator,character varying(255),f,'GM'::character varying
+public,npcs,npc_id,integer,t,nextval('npcs_npc_id_seq'::regclass)
+public,npcs,name,character varying(50),t,
+public,npcs,disposition,character varying(20),f,'중립'::character varying
+public,npcs,occupation,character varying(50),f,
+public,npcs,dialogue_style,text,f,
+public,npcs,description,text,f,
+public,npcs,base_difficulty,integer,f,10
+public,npcs,combat_description,text,f,
+public,npcs,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,npcs,creator,character varying(255),f,'GM'::character varying
+public,personality,id,character varying(50),t,
+public,personality,category,character varying(50),t,
+public,personality,label,character varying(100),t,
+public,personality,description,text,f,
+public,personality,opposite,text[],f,
+public,play_logs,id,integer,t,nextval('play_logs_id_seq'::regclass)
+public,play_logs,turn_id,character varying(100),t,
+public,play_logs,session_id,character varying(50),t,
+public,play_logs,act_id,character varying(50),f,
+public,play_logs,sequence_id,character varying(50),f,
+public,play_logs,sequence_type,character varying(50),f,
+public,play_logs,sequence_seq,integer,f,
+public,play_logs,turn_seq,integer,t,
+public,play_logs,active_entity_id,character varying(50),t,
+public,play_logs,user_input,text,t,
+public,play_logs,final_output,text,f,
+public,play_logs,state_diff,jsonb,f,
+public,play_logs,world_snapshot,jsonb,f,
+public,play_logs,commit_id,character varying(50),f,
+public,play_logs,created_at,timestamp with time zone,f,CURRENT_TIMESTAMP
+public,play_logs,meta_info,jsonb,f,
+public,player_abilities,player_id,integer,t,
+public,player_abilities,ability_id,integer,t,
+public,player_abilities,score,integer,f,10
+public,player_npc_relations,relation_id,integer,t,nextval('player_npc_relations_relation_id_seq'::regclass)
+public,player_npc_relations,npc_id,integer,f,
+public,player_npc_relations,affinity_score,integer,f,0
+public,player_npc_relations,current_level_id,integer,f,
+public,player_npc_relations,last_interaction_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,player_npc_relations,player_id,integer,t,
+public,players,player_id,integer,t,nextval('players_player_id_seq'::regclass)
+public,players,user_id,integer,t,
+public,players,name,character varying(50),t,
+public,players,gold,integer,f,500
+public,players,level,integer,f,1
+public,players,experience,integer,f,0
+public,players,current_hp,integer,f,
+public,players,max_hp,integer,f,
+public,players,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,system_configs,config_key,character varying(50),t,
+public,system_configs,config_value,integer,f,
+public,system_configs,description,text,f,
+public,users,user_id,integer,t,nextval('users_user_id_seq'::regclass)
+public,users,username,character varying(50),t,
+public,users,password_hash,text,t,
+public,users,email,character varying(100),f,
+public,users,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,users,is_active,boolean,f,true
+public,world_eras,era_id,integer,t,nextval('world_eras_era_id_seq'::regclass)
+public,world_eras,era_name,character varying(50),t,
+public,world_eras,stat_modifier,"numeric(3,2)",f,1.0
+public,world_eras,description,text,f,
+public,world_eras,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,world_locales,locale_id,integer,t,nextval('world_locales_locale_id_seq'::regclass)
+public,world_locales,name,character varying(100),t,
+public,world_locales,theme,character varying(50),f,
+public,world_locales,danger_min,integer,f,1
+public,world_locales,danger_max,integer,f,10
+public,world_locales,description,text,f,
+public,world_locales,created_at,timestamp without time zone,f,CURRENT_TIMESTAMP
+public,world_locales,creator,character varying(255),f,'GM'::character varying

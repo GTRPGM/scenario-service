@@ -21,5 +21,5 @@ async def init_db(db: DatabaseHandler):
 
 
 if __name__ == "__main__":
-    handler = DatabaseHandler(settings.DATABASE_URL)
+    handler = DatabaseHandler(settings.database_dsn)
     asyncio.run(init_db(handler))
