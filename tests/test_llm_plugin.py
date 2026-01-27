@@ -28,7 +28,6 @@ def test_llm_adapter_convert_message():
 @pytest.mark.asyncio
 async def test_llm_adapter_check_health(mock_httpx_client):
     model = ScenarioChatModel()
-    model.client = mock_httpx_client
 
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -41,7 +40,6 @@ async def test_llm_adapter_check_health(mock_httpx_client):
 @pytest.mark.asyncio
 async def test_llm_adapter_agenerate(mock_httpx_client):
     model = ScenarioChatModel()
-    model.client = mock_httpx_client
 
     mock_resp_json = {
         "id": "test_id",

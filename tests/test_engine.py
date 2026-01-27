@@ -29,7 +29,7 @@ async def test_scenario_engine_check_progression(mock_repository):
 @pytest.mark.asyncio
 async def test_scenario_writer_graph_run():
     planner = MagicMock()
-    planner.run = AsyncMock(return_value={"plan": {"acts": ["act1"]}})
+    planner.run = AsyncMock(return_value={"acts": ["act1"]})
 
     writer = MagicMock()
     writer.run = AsyncMock(return_value={"content": [{"id": "seq1"}]})

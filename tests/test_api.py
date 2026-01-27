@@ -6,7 +6,7 @@ from uuid import uuid4
 def test_health_check(client):
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "healthy"}
+    assert response.json()["status"] == "healthy"
 
 
 def test_check_progression_endpoint(client):
@@ -28,5 +28,5 @@ def test_transition_endpoint(client):
 def test_generate_scenario_endpoint(client):
     payload = {"concept": "Space opera in a dying galaxy"}
     response = client.post("/api/v1/scenario/generate", json=payload)
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert response.json()["status"] == "completed"

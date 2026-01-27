@@ -1,6 +1,6 @@
 # tests/test_plugins.py
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -30,6 +30,9 @@ async def test_postgres_adapter_update_session_state(mock_db_handler):
 @pytest.mark.asyncio
 async def test_postgres_adapter_get_session_state():
     # Currently it's a placeholder
-    adapter = PostgresScenarioAdapter(db=MagicMock(), loader=MagicMock())
+    mock_db = MagicMock()
+    mock_db.fetchrow = AsyncMock(return_value={"id": 1, "current_act_id": "act_01"})
+
+    adapter = PostgresScenarioAdapter(db=mock_db, loader=MagicMock())
     result = await adapter.get_session_state(uuid4())
     assert result["current_act_id"] == "act_01"
