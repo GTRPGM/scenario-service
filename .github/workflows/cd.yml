@@ -1,4 +1,4 @@
-name: CD-Scenario-Service
+name: CD
 
 on:
   push:
@@ -127,9 +127,9 @@ jobs:
             export DB_NAME="${{ secrets.DB_NAME }}"
 
             # External Service URLs
-            export STATE_SERVICE_URL="${{ secrets.STATE_SERVICE_URL }}"
-            export RULE_SERVICE_URL="${{ secrets.RULE_SERVICE_URL }}"
-            export LLM_GATEWAY_URL="${{ secrets.LLM_GATEWAY_URL }}"
+            export STATE_SERVICE_URL="${{ vars.STATE_SERVICE_URL }}"
+            export RULE_SERVICE_URL="${{ vars.RULE_SERVICE_URL }}"
+            export LLM_GATEWAY_URL="${{ vars.LLM_GATEWAY_URL }}"
 
             # Others
             export LLM_MODEL_NAME="${{ vars.LLM_MODEL_NAME }}"
