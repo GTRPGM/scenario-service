@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "0.0.0.0:${PORT:-8040}:8040"
+      - "0.0.0.0:${PORT:-8040}:${PORT-8040}"
 
     environment:
       PORT: ${PORT:-8040}
