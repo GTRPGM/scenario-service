@@ -105,9 +105,7 @@ jobs:
           port: 22
           debug: true
           script: |
-            TOKEN=$(/opt/ghcr/ghcr-login.sh)
-            echo "$TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
-
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
             cd /opt/services/${{ env.SERVICE_NAME }}
 
             export IMAGE_NAME=${{ env.IMAGE_NAME }}:${{ env.TAG }}
