@@ -13,6 +13,15 @@ case "$COMMAND" in
     run)
         uv run uvicorn scenario.main:app --host 0.0.0.0 --port 8040 --reload
         ;;
+    up)
+        docker compose -f docker-compose.dev.yml up --build -d
+        ;;
+    down)
+        docker compose -f docker-compose.dev.yml down
+        ;;
+    inspect)
+        docker logs scenario-service
+        ;;
     lint)
         echo "Running Ruff Linter & Formatter..."
         uvx ruff check . --fix

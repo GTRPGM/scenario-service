@@ -1,6 +1,5 @@
 # src/scenario/main.py
 
-import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -9,34 +8,29 @@ from fastapi import FastAPI, status
 from scenario.api.v1.api import api_router
 from scenario.core.config import settings
 from scenario.core.deps import db_handler
+from scenario.infra.db.init_db import init_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Manages application startup and shutdown.
-    Attempts to connect to the database but does not block app startup on failure.
+    Attempts to connect and initialize the database.
     """
-    # Attempt to connect in the background to not block Swagger/Health check
-    connection_task = asyncio.create_task(db_handler.connect())
+    try:
+        # Connect to database
+        await db_handler.connect()
+        print("[+] Database connected.")
 
-    def check_connection_result(task: asyncio.Task):
-        try:
-            task.result()
-            print("[+] Database connected successfully.")
-        except Exception as e:
-            print(f"[!] Database connection deferred or failed: {e}")
-            print(
-                "[*] Service is up. DB-dependent "
-                "endpoints will retry connection on request."
-            )
-
-    connection_task.add_done_callback(check_connection_result)
+        # Initialize tables and graphs (Idempotent)
+        await init_db(db_handler)
+    except Exception as e:
+        print(f"[!] Database initialization failed: {e}")
+        print("[*] Service will continue, but DB-dependent endpoints may fail.")
 
     yield
 
     # Cleanup on shutdown
-    connection_task.cancel()
     await db_handler.close()
     print("[-] Database connection closed.")
 
@@ -45,15 +39,15 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     lifespan=lifespan,
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 
 # Root endpoint for quick check
 @app.get("/", tags=["system"])
 async def root():
-    return {"message": f"Welcome to {settings.PROJECT_NAME}", "docs": "/api/docs"}
+    return {"message": f"Welcome to {settings.PROJECT_NAME}", "docs": "/docs"}
 
 
 # Self health check endpoint
