@@ -1,7 +1,7 @@
 # src/scenario/plugins/db/adapter.py
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from uuid import UUID
 
 from scenario.infra.db.database import DatabaseHandler
@@ -25,8 +25,14 @@ class PostgresScenarioAdapter(ScenarioRepository):
             json.dumps(
                 {
                     "scenario_id": scenario_id_str,
+                    "title": data.get("title", "Untitled"),
                     "concept": concept,
                     "summary": data.get("summary", ""),
+                    "description": data.get("description", ""),
+                    "difficulty": data.get("difficulty", "normal"),
+                    "genre": data.get("genre", "fantasy"),
+                    "tags": data.get("tags", []),
+                    "total_acts": data.get("total_acts", 1),
                 }
             ),
         )
@@ -63,6 +69,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
                             "goal": seq["goal"],
                             "exit_triggers": seq["exit_triggers"],
                             "location_name": seq["location_name"],
+                            "location_master_id": seq.get("location_master_id"),
                             "location_theme": seq.get("location_theme", ""),
                             "location_description": seq["location_description"],
                             "danger_min": seq.get("danger_min", 1),
@@ -70,36 +77,102 @@ class PostgresScenarioAdapter(ScenarioRepository):
                         }
                     ),
                 )
-                for ent in seq.get("entities", []):
+
+                for npc in seq.get("npcs", []):
                     await self.db.execute(
                         ent_cypher,
                         json.dumps(
                             {
                                 "seq_id": seq["id"],
-                                "ent_id": ent["id"],
-                                "name": ent["name"],
-                                "entity_category": ent["entity_category"],
-                                "description": ent["description"],
-                                "interaction_guide": ent["interaction_guide"],
-                                "disposition": ent.get("disposition"),
-                                "occupation": ent.get("occupation"),
-                                "dialogue_style": ent.get("dialogue_style"),
-                                "item_type": ent.get("item_type"),
-                                "grade": ent.get("grade"),
-                                "base_price": ent.get("base_price"),
-                                "weight": ent.get("weight"),
-                                "effect_value": ent.get("effect_value"),
-                                "enemy_type": ent.get("enemy_type"),
-                                "base_difficulty": ent.get("base_difficulty"),
-                                "combat_description": ent.get("combat_description"),
+                                "ent_id": npc["scenario_npc_id"],
+                                "master_id": npc.get("master_id"),
+                                "name": npc["name"],
+                                "entity_category": "NPC",
+                                "description": npc["description"],
+                                "tags": npc.get("tags", []),
+                                "state": npc.get("state", {}),
+                                "meta": {},
+                                "dropped_items": [],
                             }
                         ),
                     )
+                for enemy in seq.get("enemies", []):
+                    await self.db.execute(
+                        ent_cypher,
+                        json.dumps(
+                            {
+                                "seq_id": seq["id"],
+                                "ent_id": enemy["scenario_enemy_id"],
+                                "master_id": enemy.get("master_id"),
+                                "name": enemy["name"],
+                                "entity_category": "ENEMY",
+                                "description": enemy["description"],
+                                "tags": enemy.get("tags", []),
+                                "state": enemy.get("state", {}),
+                                "meta": {},
+                                "dropped_items": enemy.get("dropped_items", []),
+                            }
+                        ),
+                    )
+                for item in seq.get("items", []):
+                    await self.db.execute(
+                        ent_cypher,
+                        json.dumps(
+                            {
+                                "seq_id": seq["id"],
+                                "ent_id": item["item_id"],
+                                "master_id": item.get("master_id"),
+                                "name": item["name"],
+                                "entity_category": "ITEM",
+                                "description": item["description"],
+                                "tags": [],
+                                "state": {},
+                                "meta": item.get("meta", {}),
+                                "dropped_items": [],
+                            }
+                        ),
+                    )
+
+        rel_cypher = self.loader.load_cypher("create_relation")
+        for rel in data.get("relations", []):
+            await self.db.execute(
+                rel_cypher,
+                json.dumps(
+                    {
+                        "from_id": rel["from_id"],
+                        "to_id": rel["to_id"],
+                        "relation_type": rel.get("relation_type", "neutral"),
+                        "affinity": rel.get("affinity", 50),
+                        "meta": rel.get("meta", {}),
+                    }
+                ),
+            )
 
     async def list_scenarios(self) -> List[Dict[str, Any]]:
         query = self.loader.load_cypher("list_scenarios")
         rows = await self.db.fetch(query)
         return [dict(row) for row in rows]
+
+    def _clean_agtype(self, value: Any) -> Any:
+        """Helper to clean up AGE agtype strings and parse JSON-like structures."""
+        if isinstance(value, str):
+            # AGE often returns strings wrapped in double quotes
+            if value.startswith('"') and value.endswith('"'):
+                val = value[1:-1]
+                # Try to see if the inner value is also JSON (like a stringified dict)
+                if val.startswith("{") or val.startswith("["):
+                    try:
+                        return json.loads(val)
+                    except json.JSONDecodeError:
+                        return val
+                return val
+            # If it's a raw JSON string without extra quotes
+            if value.startswith("{") or value.startswith("["):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    return value
+        return value
 
     async def get_scenario_full_graph(self, scenario_id: UUID) -> Dict[str, Any]:
         query = self.loader.load_cypher("get_scenario_full_graph")
@@ -109,73 +182,114 @@ class PostgresScenarioAdapter(ScenarioRepository):
             return {}
 
         acts = {}
+        first_row = rows[0]
         result = {
             "scenario_id": str(scenario_id),
-            "concept": rows[0]["concept"],
-            "summary": rows[0]["summary"],
+            "title": self._clean_agtype(first_row.get("title", "Untitled")),
+            "concept": self._clean_agtype(first_row["concept"]),
+            "summary": self._clean_agtype(first_row["summary"]),
+            "description": self._clean_agtype(first_row.get("description", "")),
+            "difficulty": self._clean_agtype(first_row.get("difficulty", "normal")),
+            "genre": self._clean_agtype(first_row.get("genre", "fantasy")),
+            "tags": self._clean_agtype(first_row.get("tags", [])),
+            "total_acts": first_row.get("total_acts", 0),
             "acts": [],
+            "npcs": [],
+            "enemies": [],
+            "items": [],
+            "relations": [],
         }
 
+        entity_ids = set()
+
         for row in rows:
-            a_id = row["act_id"]
+            a_id = self._clean_agtype(row["act_id"])
             if not a_id:
                 continue
             if a_id not in acts:
-                acts[a_id] = {"id": a_id, "name": row["act_name"], "sequences": {}}
+                acts[a_id] = {
+                    "id": a_id,
+                    "name": self._clean_agtype(row["act_name"]),
+                    "goal": self._clean_agtype(row.get("act_goal")),
+                    "sequences": {},
+                }
 
-            s_id = row["seq_id"]
+            s_id = self._clean_agtype(row["seq_id"])
             if s_id:
                 if s_id not in acts[a_id]["sequences"]:
                     acts[a_id]["sequences"][s_id] = {
                         "id": s_id,
-                        "name": row["seq_name"],
+                        "name": self._clean_agtype(row["seq_name"]),
+                        "description": self._clean_agtype(row.get("seq_desc")),
+                        "goal": self._clean_agtype(row.get("seq_goal")),
+                        "type": self._clean_agtype(row.get("seq_type")),
                         "location": {
-                            "name": row["loc_name"],
-                            "theme": row["loc_theme"],
+                            "master_id": self._clean_agtype(row.get("loc_master_id")),
+                            "name": self._clean_agtype(row["loc_name"]),
+                            "theme": self._clean_agtype(row["loc_theme"]),
+                            "description": self._clean_agtype(row.get("loc_desc")),
                         },
                         "entities": [],
                     }
 
                 if row["ent_id"]:
-                    acts[a_id]["sequences"][s_id]["entities"].append(
-                        {
-                            "id": row["ent_id"],
-                            "name": row["ent_name"],
-                            "category": row["ent_cat"],
-                            "description": row["ent_desc"],
-                            "interaction_guide": row["ent_guide"],
-                        }
-                    )
+                    ent_id = self._clean_agtype(row["ent_id"])
+                    ent_data = {
+                        "id": ent_id,
+                        "master_id": self._clean_agtype(row.get("ent_master_id")),
+                        "name": self._clean_agtype(row["ent_name"]),
+                        "category": self._clean_agtype(row["ent_cat"]),
+                        "description": self._clean_agtype(row["ent_desc"]),
+                        "tags": self._clean_agtype(row.get("ent_tags", [])),
+                        "state": self._clean_agtype(row.get("ent_state", {})),
+                        "meta": self._clean_agtype(row.get("ent_meta", {})),
+                        "dropped_items": self._clean_agtype(row.get("ent_drops", [])),
+                    }
+                    acts[a_id]["sequences"][s_id]["entities"].append(ent_data)
+
+                    if ent_id not in entity_ids:
+                        entity_ids.add(ent_id)
+                        if ent_data["category"] == "NPC":
+                            result["npcs"].append(
+                                {
+                                    "scenario_npc_id": ent_id,
+                                    "master_id": ent_data["master_id"],
+                                    "name": ent_data["name"],
+                                    "description": ent_data["description"],
+                                    "tags": ent_data["tags"],
+                                    "state": ent_data["state"],
+                                }
+                            )
+                        elif ent_data["category"] == "ENEMY":
+                            result["enemies"].append(
+                                {
+                                    "scenario_enemy_id": ent_id,
+                                    "master_id": ent_data["master_id"],
+                                    "name": ent_data["name"],
+                                    "description": ent_data["description"],
+                                    "tags": ent_data["tags"],
+                                    "state": ent_data["state"],
+                                    "dropped_items": ent_data["dropped_items"],
+                                }
+                            )
+                        elif ent_data["category"] == "ITEM":
+                            result["items"].append(
+                                {
+                                    "item_id": ent_id,
+                                    "master_id": ent_data["master_id"],
+                                    "name": ent_data["name"],
+                                    "description": ent_data["description"],
+                                    "item_type": "misc",
+                                    "meta": ent_data["meta"],
+                                }
+                            )
 
         # Convert nested dicts to lists
         for a_id in acts:
             acts[a_id]["sequences"] = list(acts[a_id]["sequences"].values())
         result["acts"] = list(acts.values())
+
+        # Relations need a separate query or better optional match
+        # For now, we assume the user mainly needs the inject payload.
+        # Ideally, get_scenario_full_graph.cypher should also return relations
         return result
-
-    async def create_session(
-        self, session_id: UUID, scenario_id: UUID, initial_act: str, initial_seq: str
-    ) -> None:
-        sql = self.loader.load_sql("create_session")
-        await self.db.execute(
-            sql, session_id, scenario_id, initial_act, initial_seq, "{}"
-        )
-
-    async def list_sessions(self) -> List[Dict[str, Any]]:
-        sql = (
-            "SELECT session_id, scenario_id, current_act_id, current_sequence_id, "
-            "updated_at FROM session_states"
-        )
-        rows = await self.db.fetch(sql)
-        return [dict(row) for row in rows]
-
-    async def get_session_state(self, session_id: UUID) -> Optional[Dict[str, Any]]:
-        sql = "SELECT * FROM session_states WHERE session_id = $1"
-        row = await self.db.fetchrow(sql, session_id)
-        return dict(row) if row else None
-
-    async def update_session_state(
-        self, session_id: UUID, act_id: str, seq_id: str, context: Dict
-    ) -> None:
-        sql = self.loader.load_sql("update_session_state")
-        await self.db.execute(sql, act_id, seq_id, json.dumps(context), session_id)
