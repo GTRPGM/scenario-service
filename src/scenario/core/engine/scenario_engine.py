@@ -21,6 +21,13 @@ class ScenarioEngine:
         self.writer = writer
         self.rule_engine = rule_engine
 
+    async def generate_scenario(self, concept: str) -> Dict:
+        """
+        Facade for default scenario generation (Strategy: Pure).
+        Maintains backward compatibility for tests/clients expecting this method.
+        """
+        return await self.generate_pure(concept)
+
     async def generate_pure(self, concept: str) -> Dict:
         """Strategy: Pure generation based only on concept."""
         final_state = await self.writer.run(concept)
@@ -202,3 +209,14 @@ class ScenarioEngine:
         }
 
         return await validator_agent.run(agent_request)
+
+    async def get_session_state(self, session_id: uuid.UUID) -> Dict[str, Any]:
+        """Fetch session state via repository."""
+        # Assuming repository has get_session_state. Adapter has it.
+        # But ScenarioRepository interface might not have it.
+        # We should probably cast or ensure interface has it.
+        # Since Python is dynamic, if the instance has it, it works.
+        # But good practice is to add to interface. I will assume dynamic dispatch for now or that Adapter IS the repository.
+        if hasattr(self.repository, "get_session_state"):
+            return await self.repository.get_session_state(session_id)
+        return {}

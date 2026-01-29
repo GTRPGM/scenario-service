@@ -189,3 +189,23 @@ class PostgresScenarioAdapter(ScenarioRepository):
             return {}
 
         return {"act": target_act, "sequences": target_act.get("sequences", [])}
+
+    async def update_session_state(
+        self, session_id: UUID, act_id: str, seq_id: str, data: Dict
+    ) -> None:
+        sql = self.loader.load_sql("update_session_state")
+        await self.db.execute(sql, act_id, seq_id, json.dumps(data), session_id)
+
+    async def get_session_state(self, session_id: UUID) -> Dict[str, Any]:
+        sql = self.loader.load_sql("get_session_state")
+        row = await self.db.fetchrow(sql, str(session_id))
+        if not row:
+            return {}
+        row_dict = dict(row)
+        # Decode JSON fields if necessary, assuming fetch returns native types or strings
+        if isinstance(row_dict.get("context_data"), str):
+            try:
+                row_dict["context_data"] = json.loads(row_dict["context_data"])
+            except json.JSONDecodeError:
+                pass
+        return row_dict

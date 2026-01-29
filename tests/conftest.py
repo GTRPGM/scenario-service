@@ -90,6 +90,27 @@ def mock_agent():
 def client():
     mock_engine = MagicMock(spec=ScenarioEngine)
     mock_engine.generate_scenario = AsyncMock(return_value={"status": "completed"})
+    mock_engine.generate_pure = AsyncMock(return_value={"status": "completed"})
+    mock_engine.generate_grounded = AsyncMock(return_value={"status": "completed"})
+    mock_engine.generate_informed = AsyncMock(return_value={"status": "completed"})
+
+    mock_engine.validate_progression = AsyncMock(
+        return_value={
+            "status": "active",
+            "reason": "Test validation",
+            "next_act_id": "act_2",
+            "next_seq_id": "seq_2",
+            "suggested_narration": "You move forward.",
+        }
+    )
+
+    mock_engine.get_session_state = AsyncMock(
+        return_value={
+            "scenario_id": "00000000-0000-0000-0000-000000000000",
+            "current_act_id": "act_1",
+            "current_sequence_id": "seq_1",
+        }
+    )
 
     app.dependency_overrides[get_scenario_engine] = lambda: mock_engine
 

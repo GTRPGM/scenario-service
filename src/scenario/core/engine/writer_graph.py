@@ -93,6 +93,26 @@ class ScenarioWriterGraph:
         # ... existing search logic ...
         return {"content": content}
 
+    async def _reviewer_node(self, state: AgentState) -> Dict:
+        result = await self.reviewer.run(
+            {
+                "plan": state["plan"],
+                "content": state["content"],
+                "previous_reviews": state.get("reviews", []),
+            }
+        )
+        return {
+            "is_consistent": result.get("is_consistent", False),
+            "reviews": result.get("reviews", []),
+        }
+
+    def _should_continue(self, state: AgentState) -> str:
+        if state["is_consistent"]:
+            return "end"
+        if state["iterations"] >= 3:
+            return "end"
+        return "continue"
+
     async def run(self, concept: str, assets: Optional[Dict] = None) -> Dict:
         initial_state = {
             "concept": concept,
