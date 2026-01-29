@@ -1,3 +1,5 @@
+# src/scenario/core/deps.py
+
 from scenario.core.config import settings
 from scenario.core.engine.scenario_engine import ScenarioEngine
 from scenario.core.engine.writer_graph import ScenarioWriterGraph
@@ -7,16 +9,24 @@ from scenario.infra.db.query_loader import QueryLoader
 from scenario.plugins.agent.scenario_agents import (
     PlannerAgent,
     ReviewerAgent,
+    ValidatorAgent,
     WriterAgent,
 )
 from scenario.plugins.db.adapter import PostgresScenarioAdapter
 from scenario.plugins.llm.adapter import ScenarioChatModel
+from scenario.plugins.rule_engine.adapter import HttpRuleEngineAdapter
 
 # Global Infrastructure
 db_handler = DatabaseHandler(settings.database_dsn)
 query_loader = QueryLoader()
 prompt_loader = PromptLoader()
 llm_model = ScenarioChatModel()
+rule_engine = HttpRuleEngineAdapter()
+
+
+async def get_validator_agent() -> ValidatorAgent:
+    """Dependency provider for the ValidatorAgent."""
+    return ValidatorAgent(llm_model, prompt_loader)
 
 
 async def get_scenario_engine() -> ScenarioEngine:
@@ -29,6 +39,8 @@ async def get_scenario_engine() -> ScenarioEngine:
     reviewer = ReviewerAgent(llm_model, prompt_loader)
 
     # Create Graph (Core Engine)
-    writer_graph = ScenarioWriterGraph(planner, writer, reviewer)
+    writer_graph = ScenarioWriterGraph(
+        planner, writer, reviewer, rule_engine=rule_engine
+    )
 
-    return ScenarioEngine(repository, writer_graph)
+    return ScenarioEngine(repository, writer_graph, rule_engine=rule_engine)
