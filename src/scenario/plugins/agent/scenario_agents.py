@@ -43,3 +43,10 @@ class WriterAgent(BaseScenarioAgent):
 class ReviewerAgent(BaseScenarioAgent):
     def __init__(self, llm: LLMPort, loader: PromptLoader):
         super().__init__(llm, loader, "reviewer", ReviewerOutput)
+
+
+class ValidatorAgent(BaseScenarioAgent):
+    def __init__(self, llm: LLMPort, loader: PromptLoader):
+        from scenario.core.models.generation import ValidationOutput
+
+        super().__init__(llm, loader, "validator", ValidationOutput)

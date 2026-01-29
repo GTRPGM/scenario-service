@@ -140,20 +140,31 @@ class ScenarioChatModel(LLMPort):
         self,
         schema: Any,
         *,
-        method: str = "json_schema",
+        method: str = "json_object",
         **kwargs: Any,
     ) -> RunnableLambda:
         async def _call(messages: List[BaseMessage]) -> Any:
+            # When using json_object, we should ideally remind the model
+            # about the schema in the prompt but for now let's see
+            # if the existing prompts are enough.
             result = await self.ainvoke(
                 messages,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {"schema": schema.model_json_schema()},
-                },
+                response_format={"type": "json_object"},
             )
 
             content = result.content
-            data = content[0] if isinstance(content, list) else content
+            # Handle cases where result.content might be a string or a list/dict
+            if isinstance(content, list) and len(content) > 0:
+                data = content[0]
+            else:
+                data = content
+
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Failed to parse JSON response: {data}") from e
+
             return schema.model_validate(data)
 
         return RunnableLambda(_call)
