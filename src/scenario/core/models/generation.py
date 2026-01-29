@@ -82,9 +82,21 @@ class ScenarioInjectRelation(BaseModel):
 
 class ActPlan(BaseModel):
     id: str = Field(..., description="Act ID")
-    name: str = Field(..., description="Act Name")
-    goal: str = Field(..., description="Act Goal")
-    sequences: List[str] = Field(..., description="Sequence IDs in this act")
+    name: str = Field(..., description="Act Name (Thematic)")
+    region_name: str = Field(
+        ..., description="The physical region/location this act takes place in"
+    )
+    region_description: str = Field(
+        ..., description="Detailed description of the whole region"
+    )
+    goal: str = Field(..., description="Main objective of this act")
+    exit_criteria: str = Field(
+        ...,
+        description="Condition to trigger transition to the next Act (Travel)",
+    )
+    sequences: List[str] = Field(
+        ..., description="List of POI/Event sequences available in this region"
+    )
 
 
 class PlannerOutput(BaseModel):
@@ -93,7 +105,7 @@ class PlannerOutput(BaseModel):
     difficulty: str = Field("normal", description="easy, normal, hard, nightmare")
     genre: str = Field(..., description="fantasy, sci-fi, horror, etc.")
     tags: List[str] = Field(default_factory=list, description="Scenario-level tags")
-    total_acts: int = Field(..., description="Number of Acts", ge=1)
+    total_acts: int = Field(..., description="Number of Acts (Regions)", ge=1)
     acts: List[ActPlan]
     total_summary: str = Field(..., description="Brief scenario summary")
     relations: List[ScenarioInjectRelation] = Field(
@@ -134,13 +146,16 @@ class ReviewerOutput(BaseModel):
 
 class ValidationRequest(BaseModel):
     scenario_id: str
-    current_act_id: str
-    sequence: SequenceDetail = Field(
-        ..., description="Full information of the current sequence"
+    current_act: ActPlan = Field(..., description="Details of the current act/region")
+    current_sequence: SequenceDetail = Field(
+        ..., description="Details of the sequence the player is currently in"
+    )
+    available_sequences: List[SequenceDetail] = Field(
+        ..., description="All POIs available in this act for jumping"
     )
     user_input: str
     context: Dict[str, Any] = Field(
-        ..., description="Additional graph context (e.g., relations)"
+        default_factory=dict, description="Additional graph context (e.g., relations)"
     )
 
 

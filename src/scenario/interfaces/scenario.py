@@ -19,5 +19,6 @@ class ScenarioRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_scenario_full_graph(self, scenario_id: UUID) -> Dict[str, Any]:
+    async def get_act_context(self, scenario_id: UUID, act_id: str) -> Dict[str, Any]:
+        """Fetch act details and all its sequences for validation context."""
         pass

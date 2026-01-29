@@ -168,11 +168,37 @@ class ScenarioEngine:
 
     async def validate_progression(
         self,
-        request: Dict[str, Any],
-        validator_agent: Any,  # Avoid circular import if any
+        scenario_id: str,
+        act_id: str,
+        seq_id: str,
+        user_input: str,
+        validator_agent: Any,
     ) -> Dict[str, Any]:
         """
-        Uses LLM to validate if the user input triggers a scenario transition.
+        Orchestrates the validation process by fetching act context
+        and calling the validator agent.
         """
-        result = await validator_agent.run(request)
-        return result
+        # Fetch Act and associated Sequences for context
+        context = await self.repository.get_act_context(uuid.UUID(scenario_id), act_id)
+        if not context:
+            raise ValueError(f"Act {act_id} not found in scenario {scenario_id}")
+
+        act_data = context["act"]
+        all_seqs = context["sequences"]
+
+        # Find current sequence
+        current_seq = next((s for s in all_seqs if s["id"] == seq_id), None)
+        if not current_seq:
+            raise ValueError(f"Sequence {seq_id} not found in act {act_id}")
+
+        # Construct Agent Request
+        agent_request = {
+            "scenario_id": scenario_id,
+            "current_act": act_data,
+            "current_sequence": current_seq,
+            "available_sequences": all_seqs,  # All POIs in the region
+            "user_input": user_input,
+            "context": {},  # Can be extended with global relations if needed
+        }
+
+        return await validator_agent.run(agent_request)

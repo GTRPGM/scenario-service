@@ -8,23 +8,41 @@ from pydantic import BaseModel
 
 from scenario.core.deps import get_scenario_engine, get_validator_agent
 from scenario.core.engine.scenario_engine import ScenarioEngine
-from scenario.core.models.generation import ValidationOutput, ValidationRequest
+from scenario.core.models.generation import ValidationOutput
 from scenario.plugins.agent.scenario_agents import ValidatorAgent
 
 router = APIRouter()
 
 
+class ProgressionRequest(BaseModel):
+    scenario_id: str
+    act_id: str
+    seq_id: str
+    user_input: str
+
+
 @router.post("/validate-progression", response_model=ValidationOutput)
 async def validate_progression(
-    request: ValidationRequest,
+    request: ProgressionRequest,
     engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
     validator: Annotated[ValidatorAgent, Depends(get_validator_agent)],
 ):
     """
     Validate if the user action triggers a progression in the scenario.
-    Expected to be called by the GM Service or State Manager.
+    The engine will fetch necessary act/sequence context automatically.
     """
-    return await engine.validate_progression(request.model_dump(), validator)
+    try:
+        return await engine.validate_progression(
+            scenario_id=request.scenario_id,
+            act_id=request.act_id,
+            seq_id=request.seq_id,
+            user_input=request.user_input,
+            validator_agent=validator,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 class GenerateScenarioRequest(BaseModel):

@@ -45,7 +45,10 @@ class PostgresScenarioAdapter(ScenarioRepository):
                         "scenario_id": scenario_id_str,
                         "act_id": act["id"],
                         "name": act["name"],
+                        "region_name": act.get("region_name", ""),
+                        "region_description": act.get("region_description", ""),
                         "goal": act["goal"],
+                        "exit_criteria": act.get("exit_criteria", ""),
                     }
                 ),
             )
@@ -174,122 +177,15 @@ class PostgresScenarioAdapter(ScenarioRepository):
                     return value
         return value
 
-    async def get_scenario_full_graph(self, scenario_id: UUID) -> Dict[str, Any]:
-        query = self.loader.load_cypher("get_scenario_full_graph")
-        params = json.dumps({"scenario_id": str(scenario_id)})
-        rows = await self.db.fetch(query, params)
-        if not rows:
+    async def get_act_context(self, scenario_id: UUID, act_id: str) -> Dict[str, Any]:
+        full_graph = await self.get_scenario_full_graph(scenario_id)
+        if not full_graph:
             return {}
 
-        acts = {}
-        first_row = rows[0]
-        result = {
-            "scenario_id": str(scenario_id),
-            "title": self._clean_agtype(first_row.get("title", "Untitled")),
-            "concept": self._clean_agtype(first_row["concept"]),
-            "summary": self._clean_agtype(first_row["summary"]),
-            "description": self._clean_agtype(first_row.get("description", "")),
-            "difficulty": self._clean_agtype(first_row.get("difficulty", "normal")),
-            "genre": self._clean_agtype(first_row.get("genre", "fantasy")),
-            "tags": self._clean_agtype(first_row.get("tags", [])),
-            "total_acts": first_row.get("total_acts", 0),
-            "acts": [],
-            "npcs": [],
-            "enemies": [],
-            "items": [],
-            "relations": [],
-        }
+        target_act = next(
+            (a for a in full_graph.get("acts", []) if a["id"] == act_id), None
+        )
+        if not target_act:
+            return {}
 
-        entity_ids = set()
-
-        for row in rows:
-            a_id = self._clean_agtype(row["act_id"])
-            if not a_id:
-                continue
-            if a_id not in acts:
-                acts[a_id] = {
-                    "id": a_id,
-                    "name": self._clean_agtype(row["act_name"]),
-                    "goal": self._clean_agtype(row.get("act_goal")),
-                    "sequences": {},
-                }
-
-            s_id = self._clean_agtype(row["seq_id"])
-            if s_id:
-                if s_id not in acts[a_id]["sequences"]:
-                    acts[a_id]["sequences"][s_id] = {
-                        "id": s_id,
-                        "name": self._clean_agtype(row["seq_name"]),
-                        "description": self._clean_agtype(row.get("seq_desc")),
-                        "goal": self._clean_agtype(row.get("seq_goal")),
-                        "type": self._clean_agtype(row.get("seq_type")),
-                        "location": {
-                            "master_id": self._clean_agtype(row.get("loc_master_id")),
-                            "name": self._clean_agtype(row["loc_name"]),
-                            "theme": self._clean_agtype(row["loc_theme"]),
-                            "description": self._clean_agtype(row.get("loc_desc")),
-                        },
-                        "entities": [],
-                    }
-
-                if row["ent_id"]:
-                    ent_id = self._clean_agtype(row["ent_id"])
-                    ent_data = {
-                        "id": ent_id,
-                        "master_id": self._clean_agtype(row.get("ent_master_id")),
-                        "name": self._clean_agtype(row["ent_name"]),
-                        "category": self._clean_agtype(row["ent_cat"]),
-                        "description": self._clean_agtype(row["ent_desc"]),
-                        "tags": self._clean_agtype(row.get("ent_tags", [])),
-                        "state": self._clean_agtype(row.get("ent_state", {})),
-                        "meta": self._clean_agtype(row.get("ent_meta", {})),
-                        "dropped_items": self._clean_agtype(row.get("ent_drops", [])),
-                    }
-                    acts[a_id]["sequences"][s_id]["entities"].append(ent_data)
-
-                    if ent_id not in entity_ids:
-                        entity_ids.add(ent_id)
-                        if ent_data["category"] == "NPC":
-                            result["npcs"].append(
-                                {
-                                    "scenario_npc_id": ent_id,
-                                    "master_id": ent_data["master_id"],
-                                    "name": ent_data["name"],
-                                    "description": ent_data["description"],
-                                    "tags": ent_data["tags"],
-                                    "state": ent_data["state"],
-                                }
-                            )
-                        elif ent_data["category"] == "ENEMY":
-                            result["enemies"].append(
-                                {
-                                    "scenario_enemy_id": ent_id,
-                                    "master_id": ent_data["master_id"],
-                                    "name": ent_data["name"],
-                                    "description": ent_data["description"],
-                                    "tags": ent_data["tags"],
-                                    "state": ent_data["state"],
-                                    "dropped_items": ent_data["dropped_items"],
-                                }
-                            )
-                        elif ent_data["category"] == "ITEM":
-                            result["items"].append(
-                                {
-                                    "item_id": ent_id,
-                                    "master_id": ent_data["master_id"],
-                                    "name": ent_data["name"],
-                                    "description": ent_data["description"],
-                                    "item_type": "misc",
-                                    "meta": ent_data["meta"],
-                                }
-                            )
-
-        # Convert nested dicts to lists
-        for a_id in acts:
-            acts[a_id]["sequences"] = list(acts[a_id]["sequences"].values())
-        result["acts"] = list(acts.values())
-
-        # Relations need a separate query or better optional match
-        # For now, we assume the user mainly needs the inject payload.
-        # Ideally, get_scenario_full_graph.cypher should also return relations
-        return result
+        return {"act": target_act, "sequences": target_act.get("sequences", [])}
