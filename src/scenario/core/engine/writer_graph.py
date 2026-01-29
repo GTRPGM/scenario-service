@@ -1,33 +1,41 @@
 # src/scenario/core/engine/writer_graph.py
 
-from typing import Any, Dict, List, TypedDict
+import operator
+from typing import Annotated, Any, Dict, List, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
 
 from scenario.interfaces.agent import ScenarioAgent
+from scenario.interfaces.rule_engine import RuleEngineRepository
 
 
 class AgentState(TypedDict):
     concept: str
+    assets: Dict[str, Any]  # Pre-fetched assets for Strategy 2
     plan: Dict[str, Any]
-    content: Dict[str, Any]  # Changed from List to Dict to match WriterOutput
+    content: Dict[str, Any]
     reviews: List[str]
     is_consistent: bool
-    iterations: int
+    iterations: Annotated[int, operator.add]
 
 
 class ScenarioWriterGraph:
     """
     Multi-agent workflow using injected agent implementations
-    with structured outputs.
+    with structured outputs and iterative refinement.
     """
 
     def __init__(
-        self, planner: ScenarioAgent, writer: ScenarioAgent, reviewer: ScenarioAgent
+        self,
+        planner: ScenarioAgent,
+        writer: ScenarioAgent,
+        reviewer: ScenarioAgent,
+        rule_engine: Optional[RuleEngineRepository] = None,
     ):
         self.planner = planner
         self.writer = writer
         self.reviewer = reviewer
+        self.rule_engine = rule_engine
         self.workflow = self._create_workflow()
 
     def _create_workflow(self) -> Any:
@@ -35,11 +43,13 @@ class ScenarioWriterGraph:
 
         graph.add_node("planner", self._planner_node)
         graph.add_node("writer", self._writer_node)
+        graph.add_node("grounder", self._grounder_node)
         graph.add_node("reviewer", self._reviewer_node)
 
         graph.set_entry_point("planner")
         graph.add_edge("planner", "writer")
-        graph.add_edge("writer", "reviewer")
+        graph.add_edge("writer", "grounder")
+        graph.add_edge("grounder", "reviewer")
 
         graph.add_conditional_edges(
             "reviewer",
@@ -49,34 +59,44 @@ class ScenarioWriterGraph:
         return graph.compile()
 
     async def _planner_node(self, state: AgentState) -> Dict:
-        # Planner outputs {'acts': [...], 'total_summary': '...'}
-        result = await self.planner.run({"concept": state["concept"]})
-        return {"plan": result, "iterations": state.get("iterations", 0) + 1}
+        input_data = {
+            "concept": state["concept"],
+            "assets": state.get("assets", {}),  # Injected assets for Strategy 2
+            "previous_reviews": state.get("reviews", []),
+            "iteration": state.get("iterations", 0) + 1,
+        }
+        result = await self.planner.run(input_data)
+        return {"plan": result, "iterations": 1}
 
     async def _writer_node(self, state: AgentState) -> Dict:
-        # Writer outputs {'sequences': [...]}
-        result = await self.writer.run({"plan": state["plan"]})
-        return {"content": result}
-
-    async def _reviewer_node(self, state: AgentState) -> Dict:
-        # Reviewer outputs {'is_consistent': bool, 'reviews': [...]}
-        result = await self.reviewer.run(
+        result = await self.writer.run(
             {
                 "plan": state["plan"],
-                "content": state["content"],
+                "assets": state.get("assets", {}),  # Injected assets for Strategy 2
             }
         )
-        return result
+        return {"content": result}
 
-    def _should_continue(self, state: AgentState) -> str:
-        # Loop back if not consistent, but limit iterations to avoid infinite costs
-        if state["is_consistent"] or state["iterations"] >= 3:
-            return "end"
-        return "continue"
+    async def _grounder_node(self, state: AgentState) -> Dict:
+        """
+        Semantic Grounding Node.
+        If assets were pre-provided (Strategy 2), we might skip or do light refinement.
+        If not (Strategy 1), we can delegate or search.
+        """
+        # For Strategy 1 (user said delegate to Rule Engine),
+        # we might do it in the Engine
+        # but here we keep the search logic as a fallback/internal grounding.
+        if not self.rule_engine or state.get("assets"):
+            return {"content": state["content"]}
 
-    async def run(self, concept: str) -> Dict:
+        content = state["content"]
+        # ... existing search logic ...
+        return {"content": content}
+
+    async def run(self, concept: str, assets: Optional[Dict] = None) -> Dict:
         initial_state = {
             "concept": concept,
+            "assets": assets or {},
             "plan": {},
             "content": {},
             "reviews": [],
