@@ -1,5 +1,3 @@
-# src/scenario/plugins/db/adapter.py
-
 import json
 from typing import Any, Dict, List
 from uuid import UUID
@@ -10,8 +8,6 @@ from scenario.interfaces.scenario import ScenarioRepository
 
 
 class PostgresScenarioAdapter(ScenarioRepository):
-    """PostgreSQL + AGE implementation of ScenarioRepository."""
-
     def __init__(self, db: DatabaseHandler, loader: QueryLoader):
         self.db = db
         self.loader = loader
@@ -157,7 +153,6 @@ class PostgresScenarioAdapter(ScenarioRepository):
         return [dict(row) for row in rows]
 
     async def get_scenario_full_graph(self, scenario_id: UUID) -> Dict[str, Any]:
-        """Fetch and aggregate the entire scenario graph from Apache AGE."""
         query = self.loader.load_cypher("get_scenario_full_graph")
         rows = await self.db.fetch(query, json.dumps({"scenario_id": str(scenario_id)}))
         if not rows:
@@ -244,19 +239,15 @@ class PostgresScenarioAdapter(ScenarioRepository):
         return scenario
 
     def _clean_agtype(self, value: Any) -> Any:
-        """Helper to clean up AGE agtype strings and parse JSON-like structures."""
         if isinstance(value, str):
-            # AGE often returns strings wrapped in double quotes
             if value.startswith('"') and value.endswith('"'):
                 val = value[1:-1]
-                # Try to see if the inner value is also JSON (like a stringified dict)
                 if val.startswith("{") or val.startswith("["):
                     try:
                         return json.loads(val)
                     except json.JSONDecodeError:
                         return val
                 return val
-            # If it's a raw JSON string without extra quotes
             if value.startswith("{") or value.startswith("["):
                 try:
                     return json.loads(value)
@@ -289,7 +280,6 @@ class PostgresScenarioAdapter(ScenarioRepository):
         if not row:
             return {}
         row_dict = dict(row)
-        # Decode JSON fields if necessary
         if isinstance(row_dict.get("context_data"), str):
             try:
                 row_dict["context_data"] = json.loads(row_dict["context_data"])

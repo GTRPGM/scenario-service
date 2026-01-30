@@ -1,13 +1,9 @@
-# src/scenario/interfaces/scenario.py
-
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 from uuid import UUID
 
 
 class ScenarioRepository(ABC):
-    """Abstract interface for scenario data access (Templates only)."""
-
     @abstractmethod
     async def save_scenario(
         self, scenario_id: UUID, concept: str, data: Dict[str, Any]
@@ -20,10 +16,8 @@ class ScenarioRepository(ABC):
 
     @abstractmethod
     async def get_act_context(self, scenario_id: UUID, act_id: str) -> Dict[str, Any]:
-        """Fetch act details and all its sequences for validation context."""
         pass
 
     @abstractmethod
     async def get_scenario_full_graph(self, scenario_id: UUID) -> Dict[str, Any]:
-        """Fetch the entire scenario graph for injection or debugging."""
         pass

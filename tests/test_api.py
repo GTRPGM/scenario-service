@@ -1,5 +1,3 @@
-# tests/test_api.py
-
 from uuid import uuid4
 
 

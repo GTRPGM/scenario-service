@@ -1,5 +1,3 @@
-# src/scenario/core/engine/writer_graph.py
-
 import operator
 from typing import Annotated, Any, Dict, List, Optional, TypedDict
 
@@ -11,7 +9,7 @@ from scenario.interfaces.rule_engine import RuleEngineRepository
 
 class AgentState(TypedDict):
     concept: str
-    assets: Dict[str, Any]  # Pre-fetched assets for Strategy 2
+    assets: Dict[str, Any]
     plan: Dict[str, Any]
     content: Dict[str, Any]
     reviews: List[str]
@@ -20,11 +18,6 @@ class AgentState(TypedDict):
 
 
 class ScenarioWriterGraph:
-    """
-    Multi-agent workflow using injected agent implementations
-    with structured outputs and iterative refinement.
-    """
-
     def __init__(
         self,
         planner: ScenarioAgent,
@@ -61,7 +54,7 @@ class ScenarioWriterGraph:
     async def _planner_node(self, state: AgentState) -> Dict:
         input_data = {
             "concept": state["concept"],
-            "assets": state.get("assets", {}),  # Injected assets for Strategy 2
+            "assets": state.get("assets", {}),
             "previous_reviews": state.get("reviews", []),
             "iteration": state.get("iterations", 0) + 1,
         }
@@ -72,25 +65,16 @@ class ScenarioWriterGraph:
         result = await self.writer.run(
             {
                 "plan": state["plan"],
-                "assets": state.get("assets", {}),  # Injected assets for Strategy 2
+                "assets": state.get("assets", {}),
             }
         )
         return {"content": result}
 
     async def _grounder_node(self, state: AgentState) -> Dict:
-        """
-        Semantic Grounding Node.
-        If assets were pre-provided (Strategy 2), we might skip or do light refinement.
-        If not (Strategy 1), we can delegate or search.
-        """
-        # For Strategy 1 (user said delegate to Rule Engine),
-        # we might do it in the Engine
-        # but here we keep the search logic as a fallback/internal grounding.
         if not self.rule_engine or state.get("assets"):
             return {"content": state["content"]}
 
         content = state["content"]
-        # ... existing search logic ...
         return {"content": content}
 
     async def _reviewer_node(self, state: AgentState) -> Dict:

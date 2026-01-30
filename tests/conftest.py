@@ -1,5 +1,3 @@
-# tests/conftest.py
-
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,7 +7,6 @@ from testcontainers.postgres import PostgresContainer
 from scenario.infra.db.database import DatabaseHandler
 from scenario.infra.db.init_db import init_db
 
-# Mocking db_handler BEFORE importing app for API tests
 with patch("scenario.core.deps.db_handler") as mock_db:
     mock_db.connect = AsyncMock()
     mock_db.close = AsyncMock()
@@ -22,9 +19,6 @@ from scenario.interfaces.agent import ScenarioAgent
 
 @pytest.fixture(scope="session")
 def postgres_container():
-    """
-    Starts a postgres-ex container (with Apache AGE) for the entire test session.
-    """
     container = PostgresContainer("postgres-ex:latest", driver=None)
     with container:
         host = container.get_container_host_ip()
@@ -38,15 +32,9 @@ def postgres_container():
 
 @pytest.fixture(scope="session")
 async def real_db_handler(postgres_container):
-    """
-    Provides a real DatabaseHandler connected to the test container.
-    """
     handler = DatabaseHandler(postgres_container)
     await handler.connect()
-
-    # Initialize AGE and Schema
     await init_db(handler)
-
     yield handler
     await handler.close()
 

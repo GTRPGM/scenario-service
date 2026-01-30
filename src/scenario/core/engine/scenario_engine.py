@@ -1,5 +1,3 @@
-# src/scenario/core/engine/scenario_engine.py
-
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -9,8 +7,6 @@ from scenario.interfaces.scenario import ScenarioRepository
 
 
 class ScenarioEngine:
-    """Core engine for scenario management and generation."""
-
     def __init__(
         self,
         repository: ScenarioRepository,
@@ -22,20 +18,14 @@ class ScenarioEngine:
         self.rule_engine = rule_engine
 
     async def generate_scenario(self, concept: str) -> Dict:
-        """
-        Facade for default scenario generation (Strategy: Pure).
-        Maintains backward compatibility for tests/clients expecting this method.
-        """
         return await self.generate_pure(concept)
 
     async def generate_pure(self, concept: str) -> Dict:
-        """Strategy: Pure generation based only on concept."""
         final_state = await self.writer.run(concept)
         scenario_data = self._package_scenario(final_state)
         return await self._save_and_respond(scenario_data, concept, "pure")
 
     async def generate_grounded(self, concept: str) -> Dict:
-        """Strategy: Generate first, then delegate grounding to Rule Engine."""
         final_state = await self.writer.run(concept)
         scenario_data = self._package_scenario(final_state)
 
@@ -47,9 +37,6 @@ class ScenarioEngine:
         )
 
     async def generate_informed(self, concept: str) -> Dict:
-        """
-        Strategy: Generate first, fetch all assets, then match & replace locally.
-        """
         final_state = await self.writer.run(concept)
         scenario_data = self._package_scenario(final_state)
 
@@ -62,19 +49,12 @@ class ScenarioEngine:
         )
 
     def _apply_local_grounding(self, data: Dict, assets: Dict) -> Dict:
-        """
-        Name-based local grounding with attribute synchronization
-        from Rule Engine spec.
-        """
         master_npcs = {a["name"]: a for a in assets.get("npcs", [])}
         master_enemies = {a["name"]: a for a in assets.get("enemies", [])}
         master_items = {a["name"]: a for a in assets.get("items", [])}
-        master_locs = {
-            a["name"]: a for a in assets.get("locales", [])
-        }  # Rule engine uses 'locales'
+        master_locs = {a["name"]: a for a in assets.get("locales", [])}
 
         for seq in data.get("sequences", []):
-            # 1. Match Location
             m_loc = master_locs.get(seq["location_name"])
             if m_loc:
                 seq["location_master_id"] = str(m_loc.get("locale_id"))
@@ -86,7 +66,6 @@ class ScenarioEngine:
                 seq["danger_min"] = m_loc.get("danger_min", seq.get("danger_min", 1))
                 seq["danger_max"] = m_loc.get("danger_max", seq.get("danger_max", 10))
 
-            # 2. Match NPCs
             for npc in seq.get("npcs", []):
                 m_npc = master_npcs.get(npc["name"])
                 if m_npc:
@@ -98,9 +77,7 @@ class ScenarioEngine:
                     npc["state"]["numeric"]["difficulty"] = m_npc.get(
                         "base_difficulty", 10
                     )
-                    # Sync other available fields if needed
 
-            # 3. Match Enemies
             for enemy in seq.get("enemies", []):
                 m_enemy = master_enemies.get(enemy["name"])
                 if m_enemy:
@@ -112,9 +89,8 @@ class ScenarioEngine:
                     enemy["tags"] = [m_enemy.get("type", "enemy")]
                     enemy["state"]["numeric"]["HP"] = (
                         m_enemy.get("base_difficulty", 1) * 10
-                    )  # Heuristic
+                    )
 
-            # 4. Match Items
             for item in seq.get("items", []):
                 m_item = master_items.get(item["name"])
                 if m_item:
@@ -181,11 +157,6 @@ class ScenarioEngine:
         user_input: str,
         validator_agent: Any,
     ) -> Dict[str, Any]:
-        """
-        Orchestrates the validation process by fetching act context
-        and calling the validator agent.
-        """
-        # Fetch Act and associated Sequences for context
         context = await self.repository.get_act_context(uuid.UUID(scenario_id), act_id)
         if not context:
             raise ValueError(f"Act {act_id} not found in scenario {scenario_id}")
@@ -193,30 +164,22 @@ class ScenarioEngine:
         act_data = context["act"]
         all_seqs = context["sequences"]
 
-        # Find current sequence
         current_seq = next((s for s in all_seqs if s["id"] == seq_id), None)
         if not current_seq:
             raise ValueError(f"Sequence {seq_id} not found in act {act_id}")
 
-        # Construct Agent Request
         agent_request = {
             "scenario_id": scenario_id,
             "current_act": act_data,
             "current_sequence": current_seq,
-            "available_sequences": all_seqs,  # All POIs in the region
+            "available_sequences": all_seqs,
             "user_input": user_input,
-            "context": {},  # Can be extended with global relations if needed
+            "context": {},
         }
 
         return await validator_agent.run(agent_request)
 
     async def get_session_state(self, session_id: uuid.UUID) -> Dict[str, Any]:
-        """Fetch session state via repository."""
-        # Assuming repository has get_session_state. Adapter has it.
-        # But ScenarioRepository interface might not have it.
-        # We should probably cast or ensure interface has it.
-        # Since Python is dynamic, if the instance has it, it works.
-        # But good practice is to add to interface. I will assume dynamic dispatch for now or that Adapter IS the repository.
         if hasattr(self.repository, "get_session_state"):
             return await self.repository.get_session_state(session_id)
         return {}

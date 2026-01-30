@@ -84,7 +84,7 @@ def mock_data():
 
 @pytest.mark.asyncio
 async def test_engine_aggregation_logic(mock_data):
-    """1단계: 엔진이 Planner/Writer 결과를 올바르게 취합하여 Repository로 전달하는지 검증"""
+    """엔진이 Planner/Writer 결과를 올바르게 취합하여 Repository로 전달하는지 검증"""
     mock_repo = MagicMock()
     mock_repo.save_scenario = AsyncMock()
 
@@ -107,7 +107,7 @@ async def test_engine_aggregation_logic(mock_data):
 
 @pytest.mark.asyncio
 async def test_db_adapter_query_calls(mock_data):
-    """2단계: DB 어댑터가 취합된 데이터를 바탕으로 올바른 Cypher 쿼리들을 실행하는지 검증"""
+    """DB 어댑터가 취합된 데이터를 바탕으로 올바른 Cypher 쿼리들을 실행하는지 검증"""
     mock_db = MagicMock()
     mock_db.execute = AsyncMock()
 

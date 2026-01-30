@@ -1,5 +1,3 @@
-# src/scenario/plugins/llm/adapter.py
-
 import json
 from typing import Any, List, Optional
 
