@@ -144,11 +144,38 @@ class ScenarioChatModel(LLMPort):
         **kwargs: Any,
     ) -> RunnableLambda:
         async def _call(messages: List[BaseMessage]) -> Any:
-            # When using json_object, we should ideally remind the model
-            # about the schema in the prompt but for now let's see
-            # if the existing prompts are enough.
+            # Extract JSON schema for prompt injection
+            schema_str = ""
+            if hasattr(schema, "model_json_schema"):
+                schema_str = json.dumps(
+                    schema.model_json_schema(), indent=2, ensure_ascii=False
+                )
+
+            # Inject schema into the system message if not already present
+            modified_messages = list(messages)
+            schema_instruction = (
+                "\n\nYour response MUST be a single JSON object "
+                f"matching this schema:\n```json\n{schema_str}\n```\n"
+                "Do not include any explanation or markdown outside the JSON."
+            )
+
+            # Find system message to append instruction
+            system_msg_index = -1
+            for i, m in enumerate(modified_messages):
+                if isinstance(m, SystemMessage):
+                    system_msg_index = i
+                    break
+
+            if system_msg_index != -1:
+                modified_messages[system_msg_index] = SystemMessage(
+                    content=modified_messages[system_msg_index].content
+                    + schema_instruction
+                )
+            else:
+                modified_messages.insert(0, SystemMessage(content=schema_instruction))
+
             result = await self.ainvoke(
-                messages,
+                modified_messages,
                 response_format={"type": "json_object"},
             )
 

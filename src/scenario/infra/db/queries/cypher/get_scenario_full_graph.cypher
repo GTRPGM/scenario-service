@@ -7,6 +7,7 @@ SELECT * FROM cypher('scenario_graph', $$
     OPTIONAL MATCH (seq)-[:LOCATED_AT]->(l:Location)
     OPTIONAL MATCH (seq)-[:HAS_ENTITY]->(e:EntityTemplate)
     RETURN
+        s.id as scenario_id,
         s.title as title,
         s.concept as concept,
         s.summary as summary,
@@ -25,7 +26,7 @@ SELECT * FROM cypher('scenario_graph', $$
         e.description as ent_desc, e.tags as ent_tags, e.state as ent_state,
         e.meta as ent_meta, e.dropped_items as ent_drops
 $$, $1) as (
-    title agtype, concept agtype, summary agtype, description agtype,
+    scenario_id agtype, title agtype, concept agtype, summary agtype, description agtype,
     difficulty agtype, genre agtype, tags agtype, total_acts agtype,
     act_id agtype, act_name agtype, act_goal agtype,
     act_region_name agtype, act_region_desc agtype, act_exit agtype,

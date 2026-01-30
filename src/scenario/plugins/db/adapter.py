@@ -156,6 +156,93 @@ class PostgresScenarioAdapter(ScenarioRepository):
         rows = await self.db.fetch(query)
         return [dict(row) for row in rows]
 
+    async def get_scenario_full_graph(self, scenario_id: UUID) -> Dict[str, Any]:
+        """Fetch and aggregate the entire scenario graph from Apache AGE."""
+        query = self.loader.load_cypher("get_scenario_full_graph")
+        rows = await self.db.fetch(query, json.dumps({"scenario_id": str(scenario_id)}))
+        if not rows:
+            return {}
+
+        scenario: Dict[str, Any] = {}
+        acts: Dict[str, Dict[str, Any]] = {}
+        sequences: Dict[str, Dict[str, Any]] = {}
+        entities: Dict[tuple[str, str], bool] = {}
+
+        for row in rows:
+            if not scenario:
+                scenario = {
+                    "scenario_id": self._clean_agtype(row["scenario_id"]),
+                    "title": self._clean_agtype(row["title"]),
+                    "concept": self._clean_agtype(row["concept"]),
+                    "summary": self._clean_agtype(row["summary"]),
+                    "description": self._clean_agtype(row["description"]),
+                    "difficulty": self._clean_agtype(row["difficulty"]),
+                    "genre": self._clean_agtype(row["genre"]),
+                    "tags": self._clean_agtype(row["tags"]),
+                    "total_acts": self._clean_agtype(row["total_acts"]),
+                    "acts": [],
+                }
+
+            act_id = self._clean_agtype(row["act_id"])
+            if act_id and act_id not in acts:
+                acts[act_id] = {
+                    "id": act_id,
+                    "name": self._clean_agtype(row["act_name"]),
+                    "goal": self._clean_agtype(row["act_goal"]),
+                    "region_name": self._clean_agtype(row["act_region_name"]),
+                    "region_description": self._clean_agtype(row["act_region_desc"]),
+                    "exit_criteria": self._clean_agtype(row["act_exit"]),
+                    "sequences": [],
+                }
+                scenario["acts"].append(acts[act_id])
+
+            seq_id = self._clean_agtype(row["seq_id"])
+            if seq_id and seq_id not in sequences:
+                sequences[seq_id] = {
+                    "id": seq_id,
+                    "name": self._clean_agtype(row["seq_name"]),
+                    "description": self._clean_agtype(row["seq_desc"]),
+                    "goal": self._clean_agtype(row["seq_goal"]),
+                    "sequence_type": self._clean_agtype(row["seq_type"]),
+                    "location_name": self._clean_agtype(row["loc_name"]),
+                    "location_theme": self._clean_agtype(row["loc_theme"]),
+                    "location_description": self._clean_agtype(row["loc_desc"]),
+                    "location_master_id": self._clean_agtype(row["loc_master_id"]),
+                    "npcs": [],
+                    "enemies": [],
+                    "items": [],
+                    "entities": [],
+                }
+                if act_id:
+                    acts[act_id]["sequences"].append(sequences[seq_id])
+
+            ent_id = self._clean_agtype(row["ent_id"])
+            if ent_id and seq_id and (seq_id, ent_id) not in entities:
+                entities[(seq_id, ent_id)] = True
+                cat = self._clean_agtype(row["ent_cat"])
+                ent_data = {
+                    "name": self._clean_agtype(row["ent_name"]),
+                    "description": self._clean_agtype(row["ent_desc"]),
+                    "master_id": self._clean_agtype(row["ent_master_id"]),
+                    "tags": self._clean_agtype(row["ent_tags"]),
+                    "state": self._clean_agtype(row["ent_state"]),
+                    "meta": self._clean_agtype(row["ent_meta"]),
+                    "category": cat,
+                }
+                sequences[seq_id]["entities"].append(ent_data)
+                if cat == "NPC":
+                    ent_data["scenario_npc_id"] = ent_id
+                    sequences[seq_id]["npcs"].append(ent_data)
+                elif cat == "ENEMY":
+                    ent_data["scenario_enemy_id"] = ent_id
+                    ent_data["dropped_items"] = self._clean_agtype(row["ent_drops"])
+                    sequences[seq_id]["enemies"].append(ent_data)
+                elif cat == "ITEM":
+                    ent_data["item_id"] = ent_id
+                    sequences[seq_id]["items"].append(ent_data)
+
+        return scenario
+
     def _clean_agtype(self, value: Any) -> Any:
         """Helper to clean up AGE agtype strings and parse JSON-like structures."""
         if isinstance(value, str):
@@ -202,7 +289,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
         if not row:
             return {}
         row_dict = dict(row)
-        # Decode JSON fields if necessary, assuming fetch returns native types or strings
+        # Decode JSON fields if necessary
         if isinstance(row_dict.get("context_data"), str):
             try:
                 row_dict["context_data"] = json.loads(row_dict["context_data"])
