@@ -16,6 +16,8 @@ class PostgresScenarioAdapter(ScenarioRepository):
         self, scenario_id: UUID, concept: str, data: Dict[str, Any]
     ) -> None:
         scenario_id_str = str(scenario_id)
+
+        # 1. Base Scenario
         await self.db.execute(
             self.loader.load_cypher("create_scenario_base"),
             json.dumps(
@@ -32,6 +34,8 @@ class PostgresScenarioAdapter(ScenarioRepository):
                 }
             ),
         )
+
+        # 2. Acts
         act_cypher = self.loader.load_cypher("create_act")
         for act in data.get("acts", []):
             await self.db.execute(
@@ -48,14 +52,17 @@ class PostgresScenarioAdapter(ScenarioRepository):
                     }
                 ),
             )
+
+        # 3. Sequences (Linked to Acts)
         seq_cypher = self.loader.load_cypher("create_sequence")
-        ent_cypher = self.loader.load_cypher("create_entity")
-        all_sequences = {s["id"]: s for s in data.get("sequences", [])}
+        # Map sequences for quick lookup if needed, but we follow act -> sequences
+        all_seq_data = {s["id"]: s for s in data.get("sequences", [])}
+
         for act in data.get("acts", []):
             for seq_id in act.get("sequences", []):
-                if seq_id not in all_sequences:
+                if seq_id not in all_seq_data:
                     continue
-                seq = all_sequences[seq_id]
+                seq = all_seq_data[seq_id]
                 await self.db.execute(
                     seq_cypher,
                     json.dumps(
@@ -77,12 +84,26 @@ class PostgresScenarioAdapter(ScenarioRepository):
                     ),
                 )
 
-                for npc in seq.get("npcs", []):
+        # 4. Entities (Linked to Sequences)
+        ent_cypher = self.loader.load_cypher("create_entity")
+
+        # Map entities back to sequences using the references in sequences list
+        # We'll iterate through sequences and their ID lists
+        npc_map = {n["scenario_npc_id"]: n for n in data.get("npcs", [])}
+        enemy_map = {e["scenario_enemy_id"]: e for e in data.get("enemies", [])}
+        item_map = {i["item_id"]: i for i in data.get("items", [])}
+
+        for seq in data.get("sequences", []):
+            seq_id = seq["id"]
+
+            for n_id in seq.get("npcs", []):
+                if n_id in npc_map:
+                    npc = npc_map[n_id]
                     await self.db.execute(
                         ent_cypher,
                         json.dumps(
                             {
-                                "seq_id": seq["id"],
+                                "seq_id": seq_id,
                                 "ent_id": npc["scenario_npc_id"],
                                 "master_id": npc.get("master_id"),
                                 "name": npc["name"],
@@ -95,12 +116,15 @@ class PostgresScenarioAdapter(ScenarioRepository):
                             }
                         ),
                     )
-                for enemy in seq.get("enemies", []):
+
+            for e_id in seq.get("enemies", []):
+                if e_id in enemy_map:
+                    enemy = enemy_map[e_id]
                     await self.db.execute(
                         ent_cypher,
                         json.dumps(
                             {
-                                "seq_id": seq["id"],
+                                "seq_id": seq_id,
                                 "ent_id": enemy["scenario_enemy_id"],
                                 "master_id": enemy.get("master_id"),
                                 "name": enemy["name"],
@@ -113,12 +137,15 @@ class PostgresScenarioAdapter(ScenarioRepository):
                             }
                         ),
                     )
-                for item in seq.get("items", []):
+
+            for i_id in seq.get("items", []):
+                if i_id in item_map:
+                    item = item_map[i_id]
                     await self.db.execute(
                         ent_cypher,
                         json.dumps(
                             {
-                                "seq_id": seq["id"],
+                                "seq_id": seq_id,
                                 "ent_id": item["item_id"],
                                 "master_id": item.get("master_id"),
                                 "name": item["name"],
@@ -132,6 +159,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
                         ),
                     )
 
+        # 5. Relations (Global/Entity-to-Entity)
         rel_cypher = self.loader.load_cypher("create_relation")
         for rel in data.get("relations", []):
             await self.db.execute(

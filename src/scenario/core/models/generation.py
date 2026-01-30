@@ -139,6 +139,42 @@ class WriterOutput(BaseModel):
     sequences: List[SequenceDetail]
 
 
+class ActInject(BaseModel):
+    """Act data for State Manager injection (Flat)"""
+
+    id: str
+    name: str
+    description: str
+    sequences: List[str]
+
+
+class SequenceInject(BaseModel):
+    """Sequence data for State Manager injection (Flat)"""
+
+    id: str
+    name: str
+    location_name: str
+    description: str
+    npcs: List[str]
+    enemies: List[str]
+    items: List[str]
+    exit_triggers: List[str]
+
+
+class ScenarioInjectSchema(BaseModel):
+    """Final Scenario data for State Manager injection"""
+
+    title: str
+    description: str
+    summary: str
+    acts: List[ActInject]
+    sequences: List[SequenceInject]
+    npcs: List[ScenarioInjectNPC]
+    enemies: List[ScenarioInjectEnemy]
+    items: List[ScenarioInjectItem]
+    relations: List[ScenarioInjectRelation]
+
+
 class ReviewerOutput(BaseModel):
     is_consistent: bool
     reviews: List[str]

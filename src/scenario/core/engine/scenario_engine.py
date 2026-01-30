@@ -124,22 +124,61 @@ class ScenarioEngine:
         all_npcs = []
         all_enemies = []
         all_items = []
+        flattened_sequences = []
 
         for seq in content.get("sequences", []):
-            all_npcs.extend(seq.get("npcs", []))
-            all_enemies.extend(seq.get("enemies", []))
-            all_items.extend(seq.get("items", []))
+            seq_npcs = seq.get("npcs", [])
+            seq_enemies = seq.get("enemies", [])
+            seq_items = seq.get("items", [])
+
+            all_npcs.extend(seq_npcs)
+            all_enemies.extend(seq_enemies)
+            all_items.extend(seq_items)
+
+            flattened_sequences.append(
+                {
+                    "id": seq["id"],
+                    "name": seq["name"],
+                    "sequence_type": seq.get("sequence_type", "Exploration"),
+                    "location_name": seq["location_name"],
+                    "location_theme": seq.get("location_theme", ""),
+                    "location_description": seq.get("location_description", ""),
+                    "location_master_id": seq.get("location_master_id"),
+                    "danger_min": seq.get("danger_min", 1),
+                    "danger_max": seq.get("danger_max", 10),
+                    "description": seq["description"],
+                    "goal": seq["goal"],
+                    "npcs": [n["scenario_npc_id"] for n in seq_npcs],
+                    "enemies": [e["scenario_enemy_id"] for e in seq_enemies],
+                    "items": [i["item_id"] for i in seq_items],
+                    "exit_triggers": seq["exit_triggers"],
+                }
+            )
+
+        flattened_acts = []
+        for act in plan.get("acts", []):
+            flattened_acts.append(
+                {
+                    "id": act["id"],
+                    "name": act["name"],
+                    "region_name": act.get("region_name", ""),
+                    "region_description": act.get("region_description", ""),
+                    "goal": act["goal"],
+                    "exit_criteria": act["exit_criteria"],
+                    "sequences": act["sequences"],
+                }
+            )
 
         return {
             "title": plan.get("title", "Untitled Scenario"),
             "description": plan.get("description", ""),
-            "summary": plan.get("total_summary"),
+            "summary": plan.get("total_summary", ""),
             "difficulty": plan.get("difficulty", "normal"),
             "genre": plan.get("genre", "fantasy"),
             "tags": plan.get("tags", []),
             "total_acts": plan.get("total_acts", 1),
-            "acts": plan.get("acts"),
-            "sequences": content.get("sequences"),
+            "acts": flattened_acts,
+            "sequences": flattened_sequences,
             "npcs": all_npcs,
             "enemies": all_enemies,
             "items": all_items,
@@ -183,3 +222,26 @@ class ScenarioEngine:
         if hasattr(self.repository, "get_session_state"):
             return await self.repository.get_session_state(session_id)
         return {}
+
+    async def inject_to_state_manager(self, scenario_id: uuid.UUID) -> Dict[str, Any]:
+        import httpx
+
+        from scenario.core.config import settings
+
+        scenario = await self.repository.get_scenario_full_graph(scenario_id)
+        if not scenario:
+            raise ValueError(f"Scenario {scenario_id} not found")
+
+        # The full graph from repository might already be in a similar format,
+        # but let's ensure it matches the injection schema.
+        # Actually, the adapter's get_scenario_full_graph returns a nested structure
+        # similar to what LLM originally produced. We need to flatten it again.
+        # Or we could have saved the flattened version in DB?
+        # Currently save_scenario saves the 'data' (flattened by _package_scenario).
+        # Wait, let me check save_scenario in adapter.
+
+        async with httpx.AsyncClient() as client:
+            url = f"{settings.STATE_MANAGER_URL}/api/v1/state/scenario/inject"
+            response = await client.post(url, json=scenario)
+            response.raise_for_status()
+            return response.json()
