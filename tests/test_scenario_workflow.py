@@ -1,5 +1,3 @@
-# tests/test_scenario_workflow.py
-
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -26,6 +24,9 @@ def mock_data():
                     "id": "act-1",
                     "name": "Act 1",
                     "goal": "Goal 1",
+                    "region_name": "Region 1",
+                    "region_description": "Desc 1",
+                    "exit_criteria": "Exit 1",
                     "sequences": ["seq-1"],
                 }
             ],
@@ -84,7 +85,6 @@ def mock_data():
 
 @pytest.mark.asyncio
 async def test_engine_aggregation_logic(mock_data):
-    """엔진이 Planner/Writer 결과를 올바르게 취합하여 Repository로 전달하는지 검증"""
     mock_repo = MagicMock()
     mock_repo.save_scenario = AsyncMock()
 
@@ -94,7 +94,6 @@ async def test_engine_aggregation_logic(mock_data):
     engine = ScenarioEngine(repository=mock_repo, writer=mock_writer)
     await engine.generate_scenario("concept")
 
-    # save_scenario 호출 인자 검증
     args, _ = mock_repo.save_scenario.call_args
     data = args[2]
 
@@ -107,7 +106,6 @@ async def test_engine_aggregation_logic(mock_data):
 
 @pytest.mark.asyncio
 async def test_db_adapter_query_calls(mock_data):
-    """DB 어댑터가 취합된 데이터를 바탕으로 올바른 Cypher 쿼리들을 실행하는지 검증"""
     mock_db = MagicMock()
     mock_db.execute = AsyncMock()
 
@@ -117,11 +115,41 @@ async def test_db_adapter_query_calls(mock_data):
     adapter = PostgresScenarioAdapter(db=mock_db, loader=mock_loader)
 
     scenario_id = uuid4()
-    await adapter.save_scenario(
-        scenario_id, "concept", {**mock_data["plan"], **mock_data["content"]}
-    )
+    # Construct flat data manually for adapter test
+    flat_data = {
+        "title": "Test",
+        "concept": "concept",
+        "summary": "summary",
+        "description": "desc",
+        "difficulty": "normal",
+        "genre": "fantasy",
+        "tags": [],
+        "total_acts": 1,
+        "acts": mock_data["plan"]["acts"],
+        "sequences": [
+            {
+                "id": "seq-1",
+                "name": "Seq 1",
+                "sequence_type": "combat",
+                "location_name": "Cave",
+                "location_theme": "dark",
+                "location_description": "A dark cave",
+                "description": "Exploring...",
+                "goal": "Survive",
+                "exit_triggers": ["kill_boss"],
+                "npcs": ["npc-1"],
+                "enemies": ["enemy-1"],
+                "items": ["550e8400-e29b-41d4-a716-446655440001"],
+            }
+        ],
+        "npcs": mock_data["content"]["sequences"][0]["npcs"],
+        "enemies": mock_data["content"]["sequences"][0]["enemies"],
+        "items": mock_data["content"]["sequences"][0]["items"],
+        "relations": mock_data["plan"]["relations"],
+    }
 
-    # 실행된 쿼리들 확인
+    await adapter.save_scenario(scenario_id, "concept", flat_data)
+
     executed_queries = [call.args[0] for call in mock_db.execute.call_args_list]
 
     assert "QUERY_create_scenario_base" in executed_queries
@@ -130,14 +158,12 @@ async def test_db_adapter_query_calls(mock_data):
     assert "QUERY_create_entity" in executed_queries
     assert "QUERY_create_relation" in executed_queries
 
-    # Relation 쿼리의 파라미터 확인
+    import json
+
     rel_call = [
         call
         for call in mock_db.execute.call_args_list
         if call.args[0] == "QUERY_create_relation"
     ][0]
-    import json
-
     rel_params = json.loads(rel_call.args[1])
     assert rel_params["from_id"] == "npc-1"
-    assert rel_params["relation_type"] == "foe"

@@ -13,9 +13,11 @@ async def test_scenario_save_and_load_real_db(real_db_handler):
 
     scenario_id = uuid4()
     concept = "A mysterious island"
+    # New flat data structure aligned with ScenarioInjectSchema
     data = {
         "title": "The Island of Dr. Moreau",
         "summary": "Strange experiments on an island.",
+        "description": "Long description of the island.",
         "difficulty": "hard",
         "genre": "horror",
         "tags": ["island", "science"],
@@ -25,6 +27,8 @@ async def test_scenario_save_and_load_real_db(real_db_handler):
                 "id": "act1",
                 "name": "The Arrival",
                 "goal": "Find shelter",
+                "description": "Arrival at the beach.",
+                "exit_criteria": "Find a way inland.",
                 "sequences": ["seq1"],
             }
         ],
@@ -39,21 +43,27 @@ async def test_scenario_save_and_load_real_db(real_db_handler):
                 "location_name": "Coast",
                 "location_theme": "tropical",
                 "location_description": "Palm trees and sand.",
-                "npcs": [
-                    {
-                        "scenario_npc_id": "npc1",
-                        "name": "Stranded Sailor",
-                        "description": "He looks terrified.",
-                        "state": {
-                            "numeric": {"HP": 50},
-                            "boolean": {"is_scared": True},
-                        },
-                    }
-                ],
+                "danger_min": 1,
+                "danger_max": 5,
+                "npcs": ["npc1"],
                 "enemies": [],
                 "items": [],
             }
         ],
+        "npcs": [
+            {
+                "scenario_npc_id": "npc1",
+                "name": "Stranded Sailor",
+                "description": "He looks terrified.",
+                "tags": ["survivor"],
+                "state": {
+                    "numeric": {"HP": 50},
+                    "boolean": {"is_scared": True},
+                },
+            }
+        ],
+        "enemies": [],
+        "items": [],
         "relations": [],
     }
 
