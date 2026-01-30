@@ -34,25 +34,28 @@
 ### 2.2 상세 필드 명세
 
 #### 1. Acts (Act: 대규모 지역/챕터)
-| 필드명 | 타입 | 설명 |
-| :--- | :--- | :--- |
-| `id` | String | 액트 식별자 (예: `act-1`) |
-| `name` | String | 액트 이름 (예: `시작의 마을`) |
-| `description` | String | 액트 설명 |
-| `sequences` | List[String] | 소속된 시퀀스 ID 목록 (예: `["seq-1", "seq-2"]`) |
+
+| 필드명        | 타입         | 설명                                             |
+| :------------ | :----------- | :----------------------------------------------- |
+| `id`          | String       | 액트 식별자 (예: `act-1`)                        |
+| `name`        | String       | 액트 이름 (예: `시작의 마을`)                    |
+| `description` | String       | 액트 설명                                        |
+| `sequences`   | List[String] | 소속된 시퀀스 ID 목록 (예: `["seq-1", "seq-2"]`) |
 
 #### 2. Sequences (Sequence: 구체적 장소/장면)
-| 필드명 | 타입 | 설명 |
-| :--- | :--- | :--- |
-| `id` | String | 시퀀스 식별자 (예: `seq-1`) |
-| `name` | String | 시퀀스 이름 (예: `주점 내부`) |
-| `location_name`| String | 실제 장소명 (플레이어에게 보여질 이름) |
-| `description` | String | 장면/장소 묘사 |
-| `npcs` | List[String] | 배치된 NPC ID 목록 (`scenario_npc_id` 참조) |
-| `enemies` | List[String] | 배치된 적 ID 목록 (`scenario_enemy_id` 참조) |
-| `items` | List[String] | 배치된 아이템 ID 목록 |
+
+| 필드명          | 타입         | 설명                                         |
+| :-------------- | :----------- | :------------------------------------------- |
+| `id`            | String       | 시퀀스 식별자 (예: `seq-1`)                  |
+| `name`          | String       | 시퀀스 이름 (예: `주점 내부`)                |
+| `location_name` | String       | 실제 장소명 (플레이어에게 보여질 이름)       |
+| `description`   | String       | 장면/장소 묘사                               |
+| `npcs`          | List[String] | 배치된 NPC ID 목록 (`scenario_npc_id` 참조)  |
+| `enemies`       | List[String] | 배치된 적 ID 목록 (`scenario_enemy_id` 참조) |
+| `items`         | List[String] | 배치된 아이템 ID 목록                        |
 
 #### 3. Entities (NPC, Enemy, Item)
+
 엔티티들은 시퀀스 내부에 중첩되지 않고, 최상위 리스트에 정의된 후 참조됩니다.
 
 - **NPC (`npcs`)**
@@ -136,14 +139,18 @@
 상태 관리자는 세션별로 다음 정보를 실시간으로 추적하고 조회 가능해야 합니다.
 
 ### 3.1 세션 상태 추적 (State Manager의 역할)
+
 세션 테이블(`sessions`)은 다음의 외래키를 통해 시나리오 진행도를 관리합니다.
+
 - `current_act`: 현재 진행 중인 Act 번호 (순서).
 - `current_sequence`: 현재 진행 중인 Sequence 번호 (순서).
 - `current_act_id`: (Optional) 현재 Act의 String ID.
 - `current_sequence_id`: (Optional) 현재 Sequence의 String ID.
 
 ### 3.2 상태 조회 흐름
+
 사용자나 GM 서비스가 "지금 어디야?" (`GET /state/session/{session_id}/location`)라고 물으면 상태 관리자는 다음을 반환합니다.
+
 1. `session.location`: 현재 세션에 기록된 장소명.
 2. `current_sequence` 정보를 기반으로 해당 시퀀스에 소속된 엔티티(`npcs`, `enemies`)들의 **현재(Deep Copied)** 상태값을 `GET /state/session/{session_id}/npcs` 등으로 조회 가능.
 

@@ -10,7 +10,9 @@
 
 ## 현황
 
-- **단계**: 프로젝트 초기화 및 계층 구조 설계 단계
+- **단계**: Phase 1 진행 중 (Scenario Writer 연동 및 환경 최적화)
+- **이슈**: `docker-compose.local.yml` 실행 시 `LLM_GATEWAY_URL` 오버라이드 설정 오류로 인해 `test-generation` 실패 현상 발생
+- **조치**: `docker-compose.local.yml`에서 잘못된 환경 변수 오버라이드 제거 및 `.env` 설정 우선순위 보장
 - **환경**:
   - Language: Python 3.11+
   - Package Manager: uv
