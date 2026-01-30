@@ -87,6 +87,7 @@ async def transition_session(
     request: TransitionRequest,
     engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
 ):
+    # TODO: Implement actual transition logic in Engine
     return {"status": "success"}
 
 

@@ -71,10 +71,14 @@ class ScenarioWriterGraph:
         return {"content": result}
 
     async def _grounder_node(self, state: AgentState) -> Dict:
+        # For Strategy 1 (user said delegate to Rule Engine),
+        # we might do it in the Engine
+        # but here we keep the search logic as a fallback/internal grounding.
         if not self.rule_engine or state.get("assets"):
             return {"content": state["content"]}
 
         content = state["content"]
+        # TODO: Implement internal search/matching logic if Rule Engine is not available
         return {"content": content}
 
     async def _reviewer_node(self, state: AgentState) -> Dict:
