@@ -66,14 +66,11 @@ async def view_full_graph(db: DatabaseHandler, scenario_id: str):
             attrs = {
                 "Type": row["ent_cat"],
                 "Desc": row["ent_desc"],
-                "Guide": row["ent_guide"],
-                "Disp": row.get("ent_disp"),
-                "Occu": row.get("ent_occ"),
-                "Dial": row.get("ent_dial"),
-                "ItemType": row.get("ent_itype"),
-                "Grade": row.get("ent_grade"),
-                "Diff": row.get("ent_diff"),
-                "Combat": row.get("ent_combat"),
+                "MasterID": row["ent_master_id"],
+                "Tags": row["ent_tags"],
+                "State": row["ent_state"],
+                "Meta": row["ent_meta"],
+                "Drops": row["ent_drops"],
             }
             clean_attrs = {k: v for k, v in attrs.items() if v is not None}
             acts[a_id]["sequences"][s_id]["entities"].append(
@@ -93,18 +90,11 @@ async def view_full_graph(db: DatabaseHandler, scenario_id: str):
         for _, s_data in a_data["sequences"].items():
             print(f"  └── [SEQ] {s_data['name']} (@ {s_data['location']})")
             for ent in s_data["entities"]:
-                attr_str = ", ".join(
-                    [
-                        f"{k}: {v}"
-                        for k, v in ent["attrs"].items()
-                        if k != "Desc" and k != "Guide"
-                    ]
-                )
+                attr_str = f"Type: {ent['attrs'].get('Type', 'N/A')}"
                 print(f"        ├── [ENT] {ent['name']} | {attr_str}")
                 print(f"        │     - 설명: {ent['attrs'].get('Desc', '')[:60]}...")
-                print(
-                    f"        │     - 상호작용: {ent['attrs'].get('Guide', '')[:60]}..."
-                )
+                if ent["attrs"].get("State"):
+                    print(f"        │     - 상태: {ent['attrs'].get('State')}")
     print("\n" + "=" * 80)
 
 
