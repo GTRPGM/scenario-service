@@ -1,0 +1,22 @@
+{
+  "scenario_enemy_id": "goblin-01",
+  "master_id": "master-goblin-v1",
+  "name": "Scavenger Goblin",
+  "description": "A small green creature holding a rusty dagger.",
+  "tags": [
+    "humanoid",
+    "weak"
+  ],
+  "state": {
+    "numeric": {
+      "HP": 30,
+      "MP": 0
+    },
+    "boolean": {
+      "alerted": true
+    }
+  },
+  "dropped_items": [
+    "item-gold-coin"
+  ]
+}

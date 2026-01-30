@@ -14,11 +14,31 @@ class Settings(BaseSettings):
     DB_HOST: str = "localhost"
 
     # External Service URLs
-    GM_SERVICE_URL: str = "http://localhost:8020"
-    STATE_SERVICE_URL: str = "http://localhost:8030"
-    SCENARIO_SERVICE_URL: str = "http://localhost:8040"
-    RULE_SERVICE_URL: str = "http://localhost:8050"
-    LLM_GATEWAY_URL: str = "http://localhost:8060"
+    BE_ROUTER_HOST: str = "be_router"
+    BE_ROUTER_PORT: int = 8010
+    BE_ROUTER_URL: str = f"http://{BE_ROUTER_HOST}:{BE_ROUTER_PORT}"
+
+    GM_HOST: str = "gm"
+    GM_PORT: int = 8020
+    GM_SERVICE_URL: str = f"http://{GM_HOST}:{GM_PORT}"
+
+    SCENARIO_SERVICE_HOST: str = "scenario_service"
+    SCENARIO_SERVICE_PORT: int = 8030
+    SCENARIO_SERVICE_URL: str = (
+        f"http://{SCENARIO_SERVICE_HOST}:{SCENARIO_SERVICE_PORT}"
+    )
+
+    STATE_MANAGER_HOST: str = "state_manager"
+    STATE_MANAGER_PORT: int = 8040
+    STATE_MANAGER_URL: str = f"http://{STATE_MANAGER_HOST}:{STATE_MANAGER_PORT}"
+
+    RULE_ENGINE_HOST: str = "rule_engine"
+    RULE_ENGINE_PORT: int = 8050
+    RULE_ENGINE_URL: str = f"http://{RULE_ENGINE_HOST}:{RULE_ENGINE_PORT}"
+
+    LLM_GATEWAY_HOST: str = "llm_gateway"
+    LLM_GATEWAY_PORT: int = 8060
+    LLM_GATEWAY_URL: str = f"http://{LLM_GATEWAY_HOST}:{LLM_GATEWAY_PORT}"
 
     # LLM Settings
     LLM_MODEL_NAME: str = "gemini-2.0-flash-lite"

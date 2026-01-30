@@ -3,11 +3,9 @@
 
 [출력 규칙]
 1. 모든 텍스트는 반드시 **한국어**로 작성하십시오.
-2. 각 엔티티는 제공된 스키마 필드에 맞춰 상세히 작성하십시오:
-   - **장소(Location)**: `danger_min`, `danger_max` (난이도 1~10 사이 숫자로 지정)
-   - **아이템(ITEM)**: `base_price`(가격), `weight`(무게), `effect_value`(효과 수치)를 포함.
-   - **적(ENEMY)**: `enemy_type`(종족/분류), `base_difficulty`(난이도 1~20)를 포함.
-   - **NPC**: `disposition`(성향), `occupation`(직업), `dialogue_style`(말투)를 포함.
+2. 각 엔티티는 제공된 스키마 필드에 맞춰 상세히 작성하십시오.
+3. **아이템 ID는 반드시 유효한 UUID 형식**이어야 합니다.
+4. `state` 내의 `numeric`과 `boolean`은 게임 시스템에서 사용할 초기 스탯과 플래그입니다.
 
 [출력 형식]
 반드시 다음 키를 포함하는 JSON 형식으로 출력하십시오:
@@ -17,13 +15,38 @@
       "location_name": str, "location_theme": str, "location_description": str,
       "danger_min": int, "danger_max": int,
       "description": str, "goal": str, "exit_triggers": [str],
-      "entities": [
+      "npcs": [
         {
-          "id": str, "name": str, "entity_category": "NPC" | "ITEM" | "ENEMY",
-          "description": str, "interaction_guide": str,
-          "disposition": str | null, "occupation": str | null, "dialogue_style": str | null,
-          "item_type": str | null, "grade": str | null, "base_price": int | null, "weight": int | null, "effect_value": int | null,
-          "enemy_type": str | null, "base_difficulty": int | null, "combat_description": str | null
+          "scenario_npc_id": str,
+          "name": str,
+          "description": str,
+          "tags": [str],
+          "state": {
+            "numeric": { "HP": int, "MP": int, "SAN": int },
+            "boolean": { "is_merchant": bool, "is_hostile": bool }
+          }
+        }
+      ],
+      "enemies": [
+        {
+          "scenario_enemy_id": str,
+          "name": str,
+          "description": str,
+          "tags": [str],
+          "state": {
+            "numeric": { "HP": int, "MP": int, "ATK": int, "DEF": int },
+            "boolean": { "can_fly": bool }
+          },
+          "dropped_items": [str] (아이템 UUID 리스트)
+        }
+      ],
+      "items": [
+        {
+          "item_id": str (UUID),
+          "name": str,
+          "description": str,
+          "item_type": "consumable" | "equipment" | "material" | "misc",
+          "meta": { "weight": int, "price": int, "power": int }
         }
       ]
     }

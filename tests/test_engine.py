@@ -1,29 +1,10 @@
 # tests/test_engine.py
 
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
 
 import pytest
 
-from scenario.core.engine.scenario_engine import ScenarioEngine
 from scenario.core.engine.writer_graph import ScenarioWriterGraph
-
-
-@pytest.mark.asyncio
-async def test_scenario_engine_check_progression(mock_repository):
-    session_id = uuid4()
-    mock_repository.get_session_state.return_value = {
-        "current_act_id": "act_1",
-        "current_sequence_id": "seq_1",
-        "conditions": ["goal1"],
-    }
-
-    engine = ScenarioEngine(repository=mock_repository, writer=MagicMock())
-    result = await engine.check_progression(session_id, "hello")
-
-    assert result["status"] == "active"
-    assert result["context"]["act"] == "act_1"
-    mock_repository.get_session_state.assert_called_once_with(session_id)
 
 
 @pytest.mark.asyncio

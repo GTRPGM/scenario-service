@@ -1,5 +1,3 @@
-# src/scenario/plugins/llm/adapter.py
-
 import json
 from typing import Any, List, Optional
 
@@ -140,20 +138,58 @@ class ScenarioChatModel(LLMPort):
         self,
         schema: Any,
         *,
-        method: str = "json_schema",
+        method: str = "json_object",
         **kwargs: Any,
     ) -> RunnableLambda:
         async def _call(messages: List[BaseMessage]) -> Any:
+            # Extract JSON schema for prompt injection
+            schema_str = ""
+            if hasattr(schema, "model_json_schema"):
+                schema_str = json.dumps(
+                    schema.model_json_schema(), indent=2, ensure_ascii=False
+                )
+
+            # Inject schema into the system message if not already present
+            modified_messages = list(messages)
+            schema_instruction = (
+                "\n\nYour response MUST be a single JSON object "
+                f"matching this schema:\n```json\n{schema_str}\n```\n"
+                "Do not include any explanation or markdown outside the JSON."
+            )
+
+            # Find system message to append instruction
+            system_msg_index = -1
+            for i, m in enumerate(modified_messages):
+                if isinstance(m, SystemMessage):
+                    system_msg_index = i
+                    break
+
+            if system_msg_index != -1:
+                modified_messages[system_msg_index] = SystemMessage(
+                    content=modified_messages[system_msg_index].content
+                    + schema_instruction
+                )
+            else:
+                modified_messages.insert(0, SystemMessage(content=schema_instruction))
+
             result = await self.ainvoke(
-                messages,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {"schema": schema.model_json_schema()},
-                },
+                modified_messages,
+                response_format={"type": "json_object"},
             )
 
             content = result.content
-            data = content[0] if isinstance(content, list) else content
+            # Handle cases where result.content might be a string or a list/dict
+            if isinstance(content, list) and len(content) > 0:
+                data = content[0]
+            else:
+                data = content
+
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Failed to parse JSON response: {data}") from e
+
             return schema.model_validate(data)
 
         return RunnableLambda(_call)

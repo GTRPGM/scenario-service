@@ -1,0 +1,93 @@
+{
+  "title": "Ancient Ruins of Galthar",
+  "summary": "An exploration into the ruins of a once-great magical civilization.",
+  "description": "Deep within the Whispering Woods lie the ruins of Galthar. Adventurers seek the Heart of Galthar, a powerful relic guarded by ancient constructs.",
+  "difficulty": "hard",
+  "genre": "fantasy",
+  "tags": ["dungeon", "magic", "undead"],
+  "total_acts": 1,
+  "acts": [
+    {
+      "id": "act-001",
+      "name": "The Descent",
+      "region_name": "Galthar Entrance",
+      "region_description": "A crumbled stone gate guarded by ivy-covered statues.",
+      "goal": "Enter the inner sanctum.",
+      "exit_criteria": "Find the stone key and open the gate.",
+      "sequences": ["seq-001", "seq-002"]
+    }
+  ],
+  "sequences": [
+    {
+      "id": "seq-001",
+      "name": "Gatekeeper's Challenge",
+      "sequence_type": "Combat",
+      "location_name": "Ruined Gatehouse",
+      "location_theme": "Overgrown Ruins",
+      "location_description": "A mossy gatehouse where the first guardians wait.",
+      "danger_min": 3,
+      "danger_max": 5,
+      "description": "As you approach, the statues begin to move.",
+      "goal": "Defeat the Stone Sentinel.",
+      "exit_triggers": ["Sentinel defeated", "Found side entrance"],
+      "npcs": [],
+      "enemies": [
+        {
+          "scenario_enemy_id": "enemy-sentinel-01",
+          "name": "Stone Sentinel",
+          "description": "A massive animated statue with a cracked shield.",
+          "tags": ["construct", "elite"],
+          "state": {
+            "numeric": {"HP": 500, "ATK": 25},
+            "boolean": {"is_enraged": false}
+          },
+          "dropped_items": ["item-stone-key"]
+        }
+      ],
+      "items": [
+        {
+          "item_id": "item-stone-key",
+          "name": "Ancient Stone Key",
+          "description": "A heavy key carved from black granite.",
+          "item_type": "key",
+          "meta": {"weight": 2.5}
+        }
+      ]
+    },
+    {
+      "id": "seq-002",
+      "name": "Echoing Hall",
+      "sequence_type": "Exploration",
+      "location_name": "Grand Hallway",
+      "location_theme": "Dark Corridor",
+      "location_description": "A long hall where every footstep echoes unnaturally.",
+      "danger_min": 1,
+      "danger_max": 2,
+      "description": "The walls are lined with fading murals of the old kings.",
+      "goal": "Reach the Inner Gate.",
+      "exit_triggers": ["Reached the gate"],
+      "npcs": [
+        {
+          "scenario_npc_id": "npc-ghost-01",
+          "name": "Ghost of a Scholar",
+          "description": "A translucent figure frantically searching through invisible papers.",
+          "tags": ["ghost", "friendly"],
+          "state": {
+            "numeric": {"SAN": 10},
+            "boolean": {"has_info": true}
+          }
+        }
+      ],
+      "enemies": [],
+      "items": []
+    }
+  ],
+  "relations": [
+    {
+      "from_id": "npc-ghost-01",
+      "to_id": "enemy-sentinel-01",
+      "relation_type": "fear",
+      "affinity": 10
+    }
+  ]
+}

@@ -10,6 +10,7 @@ SELECT * FROM cypher('scenario_graph', $$
         goal: $goal,
         exit_triggers: $exit_triggers
     })-[:LOCATED_AT]->(l:Location {
+        id: $location_master_id,
         name: $location_name,
         theme: $location_theme,
         description: $location_description,

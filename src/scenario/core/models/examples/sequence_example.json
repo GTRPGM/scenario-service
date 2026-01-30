@@ -1,0 +1,39 @@
+{
+  "id": "seq-101",
+  "name": "Ruined Plaza Encounter",
+  "sequence_type": "Combat",
+  "location_name": "Central Plaza",
+  "location_theme": "Urban Decay",
+  "location_description": "A crumbled city square overgrown with neon moss.",
+  "danger_min": 3,
+  "danger_max": 5,
+  "description": "Shadows move within the ruins.",
+  "goal": "Defeat the guardian.",
+  "exit_triggers": [
+    "Enemy defeated",
+    "Escaped via sewer"
+  ],
+  "npcs": [],
+  "enemies": [
+    {
+      "scenario_enemy_id": "enemy-01",
+      "name": "Mecha-Wolf",
+      "description": "A rusting mechanical wolf with glowing red eyes.",
+      "tags": [
+        "beast",
+        "machine"
+      ],
+      "state": {
+        "numeric": {
+          "HP": 150,
+          "ATK": 12
+        },
+        "boolean": {
+          "is_enraged": false
+        }
+      },
+      "dropped_items": []
+    }
+  ],
+  "items": []
+}

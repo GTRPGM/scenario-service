@@ -1,94 +1,140 @@
-# src/scenario/api/v1/endpoints/scenario.py
-
 from typing import Annotated, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
-from scenario.core.deps import get_scenario_engine
+from scenario.core.deps import get_scenario_engine, get_validator_agent
 from scenario.core.engine.scenario_engine import ScenarioEngine
+from scenario.core.models.generation import ValidationOutput
+from scenario.plugins.agent.scenario_agents import ValidatorAgent
 
 router = APIRouter()
 
 
-class ProgressionCheckRequest(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    session_id: UUID
+class ProgressionRequest(BaseModel):
+    scenario_id: str
+    act_id: str
+    seq_id: str
     user_input: str
 
 
-class TransitionRequest(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    session_id: UUID
-    next_act_id: str
-    next_seq_id: str
-
-
-class GenerateScenarioRequest(BaseModel):
-    concept: str
-
-
-class InitializeSessionRequest(BaseModel):
-    session_id: UUID
-    scenario_id: UUID
-
-
-@router.post("/generate", status_code=status.HTTP_201_CREATED)
-async def generate_scenario(
-    request: GenerateScenarioRequest,
+@router.post("/validate-progression", response_model=ValidationOutput)
+async def validate_progression(
+    request: ProgressionRequest,
     engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
+    validator: Annotated[ValidatorAgent, Depends(get_validator_agent)],
 ):
-    """Trigger the multi-agent generation pipeline."""
-    return await engine.generate_scenario(request.concept)
-
-
-@router.get("/", response_model=List[Dict])
-async def list_scenarios(
-    engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
-):
-    """List all saved scenario templates."""
-    return await engine.list_scenarios()
-
-
-@router.post("/session/initialize", status_code=status.HTTP_201_CREATED)
-async def initialize_session(
-    request: InitializeSessionRequest,
-    engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
-):
-    """Create a new session instance from a scenario template."""
     try:
-        return await engine.initialize_session(request.session_id, request.scenario_id)
+        return await engine.validate_progression(
+            scenario_id=request.scenario_id,
+            act_id=request.act_id,
+            seq_id=request.seq_id,
+            user_input=request.user_input,
+            validator_agent=validator,
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.post("/check")
-async def check_progression(
-    request: ProgressionCheckRequest,
+class CheckProgressionRequest(BaseModel):
+    session_id: str
+    user_input: str
+
+
+@router.post("/check", response_model=ValidationOutput)
+async def check_progression_alias(
+    request: CheckProgressionRequest,
     engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
+    validator: Annotated[ValidatorAgent, Depends(get_validator_agent)],
 ):
-    """Check if the player's action triggers any scenario transitions."""
-    return await engine.check_progression(request.session_id, request.user_input)
+    try:
+        session_id_uuid = UUID(request.session_id)
+        session_state = await engine.get_session_state(session_id_uuid)
+        if not session_state:
+            raise ValueError(f"Session {request.session_id} not found")
+
+        scenario_id = session_state.get("scenario_id")
+        act_id = session_state.get("current_act_id")
+        seq_id = session_state.get("current_sequence_id")
+
+        if not all([scenario_id, act_id, seq_id]):
+            raise ValueError("Incomplete session state")
+
+        return await engine.validate_progression(
+            scenario_id=str(scenario_id),
+            act_id=act_id,
+            seq_id=seq_id,
+            user_input=request.user_input,
+            validator_agent=validator,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class TransitionRequest(BaseModel):
+    session_id: str
+    next_act_id: str
+    next_seq_id: str
 
 
 @router.post("/transition", status_code=status.HTTP_200_OK)
-async def transition_scenario(
+async def transition_session(
     request: TransitionRequest,
     engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
 ):
-    """Manually transition the scenario to a new Act or Sequence."""
-    await engine.execute_transition(
-        request.session_id, request.next_act_id, request.next_seq_id
-    )
+    # TODO: Implement actual transition logic in Engine
     return {"status": "success"}
 
 
-@router.get("/sessions/list", response_model=List[Dict])
-async def list_sessions(
+class GenerateScenarioRequest(BaseModel):
+    concept: str
+
+
+@router.post("/generate", status_code=status.HTTP_201_CREATED)
+async def generate_pure(
+    request: GenerateScenarioRequest,
     engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
 ):
-    """List all active player sessions."""
-    return await engine.repository.list_sessions()
+    return await engine.generate_pure(request.concept)
+
+
+@router.post("/ground", status_code=status.HTTP_201_CREATED)
+async def generate_grounded(
+    request: GenerateScenarioRequest,
+    engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
+):
+    return await engine.generate_grounded(request.concept)
+
+
+@router.post("/info", status_code=status.HTTP_201_CREATED)
+async def generate_informed(
+    request: GenerateScenarioRequest,
+    engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
+):
+    return await engine.generate_informed(request.concept)
+
+
+@router.get("/", response_model=List[Dict])
+async def list_scenarios(
+    engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
+):
+    return await engine.list_scenarios()
+
+
+@router.post("/{scenario_id}/inject", status_code=status.HTTP_200_OK)
+async def inject_scenario(
+    scenario_id: UUID,
+    engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
+):
+    try:
+        return await engine.inject_to_state_manager(scenario_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except Exception as e:
+        detail = f"Injection failed: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail) from e

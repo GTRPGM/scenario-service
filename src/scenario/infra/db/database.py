@@ -59,6 +59,10 @@ class DatabaseHandler:
         async with self.get_connection() as conn:
             return await conn.fetch(query, *args)
 
+    async def fetchrow(self, query: str, *args) -> Optional[asyncpg.Record]:
+        async with self.get_connection() as conn:
+            return await conn.fetchrow(query, *args)
+
     async def execute(self, query: str, *args) -> str:
         async with self.get_connection() as conn:
             return await conn.execute(query, *args)

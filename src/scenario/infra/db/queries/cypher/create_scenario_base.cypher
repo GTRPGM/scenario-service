@@ -1,5 +1,13 @@
--- src/scenario/infra/db/queries/cypher/create_scenario_base.cypher
-
 SELECT * FROM cypher('scenario_graph', $$
-    CREATE (s:Scenario {id: $scenario_id, concept: $concept, summary: $summary})
+    CREATE (s:Scenario {
+        id: $scenario_id,
+        title: $title,
+        concept: $concept,
+        summary: $summary,
+        description: $description,
+        difficulty: $difficulty,
+        genre: $genre,
+        tags: $tags,
+        total_acts: $total_acts
+    })
 $$, $1) as (v agtype);

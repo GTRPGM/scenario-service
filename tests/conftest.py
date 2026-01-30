@@ -1,11 +1,12 @@
-# tests/conftest.py
-
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from testcontainers.postgres import PostgresContainer
 
-# Mocking db_handler BEFORE importing app
+from scenario.infra.db.database import DatabaseHandler
+from scenario.infra.db.init_db import init_db
+
 with patch("scenario.core.deps.db_handler") as mock_db:
     mock_db.connect = AsyncMock()
     mock_db.close = AsyncMock()
@@ -14,6 +15,28 @@ with patch("scenario.core.deps.db_handler") as mock_db:
 from scenario.core.deps import get_scenario_engine
 from scenario.core.engine.scenario_engine import ScenarioEngine
 from scenario.interfaces.agent import ScenarioAgent
+
+
+@pytest.fixture(scope="session")
+def postgres_container():
+    container = PostgresContainer("postgres-ex:latest", driver=None)
+    with container:
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(5432)
+        user = container.username
+        password = container.password
+        dbname = container.dbname
+        dsn = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+        yield dsn
+
+
+@pytest.fixture(scope="session")
+async def real_db_handler(postgres_container):
+    handler = DatabaseHandler(postgres_container)
+    await handler.connect()
+    await init_db(handler)
+    yield handler
+    await handler.close()
 
 
 @pytest.fixture
@@ -54,9 +77,28 @@ def mock_agent():
 @pytest.fixture
 def client():
     mock_engine = MagicMock(spec=ScenarioEngine)
-    mock_engine.check_progression = AsyncMock(return_value={"status": "active"})
-    mock_engine.execute_transition = AsyncMock()
     mock_engine.generate_scenario = AsyncMock(return_value={"status": "completed"})
+    mock_engine.generate_pure = AsyncMock(return_value={"status": "completed"})
+    mock_engine.generate_grounded = AsyncMock(return_value={"status": "completed"})
+    mock_engine.generate_informed = AsyncMock(return_value={"status": "completed"})
+
+    mock_engine.validate_progression = AsyncMock(
+        return_value={
+            "is_triggered": False,
+            "reason": "Test validation",
+            "next_act_id": "act_2",
+            "next_seq_id": "seq_2",
+            "suggested_narration": "You move forward.",
+        }
+    )
+
+    mock_engine.get_session_state = AsyncMock(
+        return_value={
+            "scenario_id": "00000000-0000-0000-0000-000000000000",
+            "current_act_id": "act_1",
+            "current_sequence_id": "seq_1",
+        }
+    )
 
     app.dependency_overrides[get_scenario_engine] = lambda: mock_engine
 

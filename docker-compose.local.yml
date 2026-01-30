@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres-ex
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=gtrpgm
+    ports:
+      - "5435:5432"
+    networks:
+      - gtrpgm-net
+
+  scenario-service:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8040:8040"
+    environment:
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: gtrpgm
+      DB_PORT: 5432
+      SCENARIO_GRAPH_NAME: "${SCENARIO_GRAPH_NAME:-scenario_graph}"
+      LLM_GATEWAY_URL: http://35.216.98.244:8060/
+
+    networks:
+      - gtrpgm-net
+
+networks:
+  gtrpgm-net:
+    driver: bridge
