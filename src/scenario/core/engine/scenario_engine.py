@@ -228,20 +228,71 @@ class ScenarioEngine:
 
         from scenario.core.config import settings
 
-        scenario = await self.repository.get_scenario_full_graph(scenario_id)
-        if not scenario:
+        # 1. Fetch the nested graph from DB
+        nested_scenario = await self.repository.get_scenario_full_graph(scenario_id)
+        if not nested_scenario:
             raise ValueError(f"Scenario {scenario_id} not found")
 
-        # The full graph from repository might already be in a similar format,
-        # but let's ensure it matches the injection schema.
-        # Actually, the adapter's get_scenario_full_graph returns a nested structure
-        # similar to what LLM originally produced. We need to flatten it again.
-        # Or we could have saved the flattened version in DB?
-        # Currently save_scenario saves the 'data' (flattened by _package_scenario).
-        # Wait, let me check save_scenario in adapter.
+        # 2. Transform nested graph to Flat Injection Schema
+        all_npcs = []
+        all_enemies = []
+        all_items = []
+        flattened_sequences = []
+        flattened_acts = []
 
+        # Extract entities and sequences
+        for act in nested_scenario.get("acts", []):
+            act_seq_ids = []
+            for seq in act.get("sequences", []):
+                act_seq_ids.append(seq["id"])
+
+                # Collect entities from sequence
+                seq_npc_ids = [n["scenario_npc_id"] for n in seq.get("npcs", [])]
+                seq_enemy_ids = [e["scenario_enemy_id"] for e in seq.get("enemies", [])]
+                seq_item_ids = [i["item_id"] for i in seq.get("items", [])]
+
+                all_npcs.extend(seq.get("npcs", []))
+                all_enemies.extend(seq.get("enemies", []))
+                all_items.extend(seq.get("items", []))
+
+                flattened_sequences.append(
+                    {
+                        "id": seq["id"],
+                        "name": seq["name"],
+                        "location_name": seq["location_name"],
+                        "description": seq["description"],
+                        "npcs": seq_npc_ids,
+                        "enemies": seq_enemy_ids,
+                        "items": seq_item_ids,
+                        "exit_triggers": seq.get("exit_triggers", []),
+                    }
+                )
+
+            flattened_acts.append(
+                {
+                    "id": act["id"],
+                    "name": act["name"],
+                    "description": act.get("region_description", ""),
+                    "sequences": act_seq_ids,
+                }
+            )
+
+        payload = {
+            "title": nested_scenario.get("title", ""),
+            "description": nested_scenario.get("description", ""),
+            "summary": nested_scenario.get("summary", ""),
+            "acts": flattened_acts,
+            "sequences": flattened_sequences,
+            "npcs": all_npcs,
+            "enemies": all_enemies,
+            "items": all_items,
+            "relations": nested_scenario.get("relations", []),
+        }
+
+        # 3. Send to State Manager
         async with httpx.AsyncClient() as client:
-            url = f"{settings.STATE_MANAGER_URL}/api/v1/state/scenario/inject"
-            response = await client.post(url, json=scenario)
+            # Removed /api/v1 prefix as requested
+            url = f"{settings.STATE_MANAGER_URL}/state/scenario/inject"
+            response = await client.post(url, json=payload)
             response.raise_for_status()
             return response.json()
