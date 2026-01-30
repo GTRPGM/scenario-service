@@ -14,7 +14,7 @@ def test_check_progression_endpoint(client):
     payload = {"session_id": session_id, "user_input": "I want to talk to the guard"}
     response = client.post("/api/v1/scenario/check", json=payload)
     assert response.status_code == 200
-    assert response.json()["status"] == "active"
+    assert response.json()["is_triggered"] is False
 
 
 def test_transition_endpoint(client):

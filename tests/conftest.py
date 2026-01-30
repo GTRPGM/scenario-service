@@ -96,7 +96,7 @@ def client():
 
     mock_engine.validate_progression = AsyncMock(
         return_value={
-            "status": "active",
+            "is_triggered": False,
             "reason": "Test validation",
             "next_act_id": "act_2",
             "next_seq_id": "seq_2",
