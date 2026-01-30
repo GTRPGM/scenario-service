@@ -33,8 +33,7 @@ jobs:
 
       - name: Pull and tag database image
         run: |
-          docker pull ghcr.io/gtrpgm/postgres-ex:sha-ff81729
-          docker tag ghcr.io/gtrpgm/postgres-ex:sha-ff81729 postgres-ex:latest
+          docker pull ghcr.io/gtrpgm/postgres-ex:latest
 
       - name: Run Unit Tests
         run: |
