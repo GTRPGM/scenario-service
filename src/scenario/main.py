@@ -45,12 +45,12 @@ app = FastAPI(
 
 
 # Root endpoint for quick check
-@app.get("/", tags=["system"])
+@app.get("/")
 async def root():
     return {"message": f"Welcome to {settings.PROJECT_NAME}", "docs": "/docs"}
 
 
-# Self health check endpoint
+# Basic health check for the service itself
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["system"])
 async def health_check() -> dict[str, str]:
     return {
