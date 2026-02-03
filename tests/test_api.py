@@ -19,7 +19,12 @@ def test_services_health_check(client):
 
 def test_check_progression_endpoint(client):
     session_id = str(uuid4())
-    payload = {"session_id": session_id, "user_input": "I want to talk to the guard"}
+    scenario_id = str(uuid4())
+    payload = {
+        "scenario_id": scenario_id,
+        "session_id": session_id,
+        "user_input": "I want to talk to the guard",
+    }
     response = client.post("/api/v1/check/session", json=payload)
     assert response.status_code in [200, 404]
 
@@ -36,4 +41,4 @@ def test_generate_scenario_endpoint(client):
     payload = {"concept": "Space opera in a dying galaxy"}
     response = client.post("/api/v1/generation/pure", json=payload)
     assert response.status_code == 201
-    assert response.json()["status"] == "completed"
+    assert response.json()["status"] == "success"

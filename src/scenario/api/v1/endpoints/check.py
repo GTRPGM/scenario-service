@@ -20,6 +20,7 @@ class ValidationRequest(BaseModel):
 
 
 class SessionCheckRequest(BaseModel):
+    scenario_id: str
     session_id: str
     user_input: str
 
@@ -32,13 +33,14 @@ async def validate_by_ids(
 ):
     """Validate progression using explicit scenario, act, and sequence IDs."""
     try:
-        return await engine.validate_progression(
+        result = await engine.validate_progression(
             scenario_id=request.scenario_id,
             act_id=request.act_id,
             seq_id=request.seq_id,
             user_input=request.user_input,
             validator_agent=validator,
         )
+        return ValidationOutput(**result)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
@@ -58,20 +60,25 @@ async def validate_by_session(
         if not session_state:
             raise ValueError(f"Session {request.session_id} not found")
 
-        scenario_id = session_state.get("scenario_id")
+        # Use scenario_id from request as priority (GM sends it)
+        scenario_id = request.scenario_id or str(session_state.get("scenario_id"))
         act_id = session_state.get("current_act_id")
         seq_id = session_state.get("current_sequence_id")
 
         if not all([scenario_id, act_id, seq_id]):
             raise ValueError("Incomplete session state")
 
-        return await engine.validate_progression(
-            scenario_id=str(scenario_id),
+        result = await engine.validate_progression(
+            scenario_id=scenario_id,
             act_id=act_id,
             seq_id=seq_id,
             user_input=request.user_input,
             validator_agent=validator,
         )
+
+        # Add session_id to the response
+        result["session_id"] = request.session_id
+        return ValidationOutput(**result)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:

@@ -1,5 +1,6 @@
 # src/scenario/main.py
 
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -9,6 +10,15 @@ from scenario.api.v1.api import api_router
 from scenario.core.config import settings
 from scenario.core.deps import db_handler
 from scenario.infra.db.init_db import init_db
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+# Ensure logs are visible in uvicorn
+logging.getLogger("uvicorn").propagate = True
+logger = logging.getLogger("scenario")
 
 
 @asynccontextmanager
@@ -20,19 +30,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         # Connect to database
         await db_handler.connect()
-        print("[+] Database connected.")
+        logger.info("Database connected.")
 
         # Initialize tables and graphs (Idempotent)
         await init_db(db_handler)
     except Exception as e:
-        print(f"[!] Database initialization failed: {e}")
-        print("[*] Service will continue, but DB-dependent endpoints may fail.")
+        logger.error(f"Database initialization failed: {e}")
+        logger.warning("Service will continue, but DB-dependent endpoints may fail.")
 
     yield
 
     # Cleanup on shutdown
     await db_handler.close()
-    print("[-] Database connection closed.")
+    logger.info("Database connection closed.")
 
 
 app = FastAPI(

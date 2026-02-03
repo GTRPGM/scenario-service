@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, Dict, List
 from uuid import UUID
 
@@ -8,6 +9,7 @@ from scenario.core.deps import get_scenario_engine
 from scenario.core.engine.scenario_engine import ScenarioEngine
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class TransitionRequest(BaseModel):
@@ -30,6 +32,7 @@ async def inject_scenario(
     engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
 ):
     """Inject a scenario into the State Manager."""
+    logger.info(f"Received injection request for scenario: {scenario_id}")
     try:
         return await engine.inject_to_state_manager(scenario_id)
     except ValueError as e:
