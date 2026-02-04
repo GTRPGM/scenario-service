@@ -112,6 +112,13 @@ class SequenceInject(BaseModel):
     enemies: List[str] = []
     items: List[str] = []
 
+    @field_validator("location_master_id", mode="before")
+    @classmethod
+    def ensure_str_id(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
+
 
 class ScenarioInjectSchema(BaseModel):
     """Final structure for State Manager (Flat & Strictly Typed)"""
