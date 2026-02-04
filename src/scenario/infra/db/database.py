@@ -33,7 +33,7 @@ class DatabaseHandler:
                     init=self._initialize_age,
                     min_size=2,
                     max_size=10,
-                    command_timeout=60,
+                    command_timeout=300,
                 )
             except Exception as e:
                 # Log but don't raise here; let the caller decide

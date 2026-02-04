@@ -1,7 +1,8 @@
 -- src/scenario/infra/db/queries/cypher/create_act.cypher
 SELECT * FROM cypher('scenario_graph', $$
-    MATCH (s:Scenario {id: $scenario_id})
-    CREATE (s)-[:HAS_ACT]->(a:Act {
+    MATCH (scenario_node:Scenario)
+    WHERE scenario_node.id = $scenario_id
+    CREATE (scenario_node)-[:HAS_ACT]->(act_node:Act {
         id: $act_id,
         name: $name,
         region_name: $region_name,

@@ -1,20 +1,14 @@
 -- src/scenario/infra/db/queries/cypher/create_sequence.cypher
 
 SELECT * FROM cypher('scenario_graph', $$
-    MATCH (a:Act {id: $act_id})
-    CREATE (a)-[:HAS_SEQUENCE]->(s:Sequence {
+    MATCH (s:Scenario {id: $scenario_id})-[:HAS_ACT]->(act_node:Act {id: $act_id})
+
+    CREATE (act_node)-[:HAS_SEQUENCE]->(seq_node:Sequence {
         id: $seq_id,
         name: $name,
-        type: $sequence_type,
+        sequence_type: $sequence_type,
         description: $description,
         goal: $goal,
         exit_triggers: $exit_triggers
-    })-[:LOCATED_AT]->(l:Location {
-        id: $location_master_id,
-        name: $location_name,
-        theme: $location_theme,
-        description: $location_description,
-        danger_min: $danger_min,
-        danger_max: $danger_max
     })
 $$, $1) as (v agtype);

@@ -1,8 +1,8 @@
 -- src/scenario/infra/db/queries/cypher/create_entity.cypher
 
 SELECT * FROM cypher('scenario_graph', $$
-    MATCH (s:Sequence {id: $seq_id})
-    CREATE (s)-[:HAS_ENTITY]->(e:EntityTemplate {
+    MATCH (s:Scenario {id: $scenario_id})-[:HAS_ACT]->()-[:HAS_SEQUENCE]->(seq_node:Sequence {id: $seq_id})
+    CREATE (seq_node)-[:HAS_ENTITY]->(entity_node:EntityTemplate {
         id: $ent_id,
         master_id: $master_id,
         name: $name,

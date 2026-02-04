@@ -85,8 +85,10 @@ class ScenarioChatModel(LLMPort):
         )
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
+            target_url = f"{self.base_url.rstrip('/')}/api/v1/chat/completions"
+            print(f"📡 [LLM] Sending request to: {target_url}")
             response = await client.post(
-                f"{self.base_url.rstrip('/')}/api/v1/chat/completions",
+                target_url,
                 json=request_body.model_dump(exclude_none=True),
             )
             response.raise_for_status()

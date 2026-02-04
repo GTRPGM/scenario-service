@@ -9,9 +9,15 @@ from scenario.interfaces.rule_engine import RuleEngineRepository
 
 class AgentState(TypedDict):
     concept: str
-    assets: Dict[str, Any]
-    plan: Dict[str, Any]
-    content: Dict[str, Any]
+    assets: Dict[str, Any]  # World settings/master data
+    plan: Dict[str, Any]  # High-level plan + Manifests
+
+    # Global Asset Catalog
+    items: List[Dict[str, Any]]
+    npcs: List[Dict[str, Any]]
+    enemies: List[Dict[str, Any]]
+
+    content: Dict[str, Any]  # Sequence details (references IDs)
     reviews: List[str]
     is_consistent: bool
     iterations: Annotated[int, operator.add]
@@ -23,9 +29,11 @@ class ScenarioWriterGraph:
         planner: ScenarioAgent,
         writer: ScenarioAgent,
         reviewer: ScenarioAgent,
+        asset_writer: Optional[ScenarioAgent] = None,
         rule_engine: Optional[RuleEngineRepository] = None,
     ):
         self.planner = planner
+        self.asset_writer = asset_writer
         self.writer = writer
         self.reviewer = reviewer
         self.rule_engine = rule_engine
@@ -35,12 +43,20 @@ class ScenarioWriterGraph:
         graph = StateGraph(AgentState)
 
         graph.add_node("planner", self._planner_node)
+        if self.asset_writer:
+            graph.add_node("asset_writer", self._asset_writer_node)
         graph.add_node("writer", self._writer_node)
         graph.add_node("grounder", self._grounder_node)
         graph.add_node("reviewer", self._reviewer_node)
 
         graph.set_entry_point("planner")
-        graph.add_edge("planner", "writer")
+
+        if self.asset_writer:
+            graph.add_edge("planner", "asset_writer")
+            graph.add_edge("asset_writer", "writer")
+        else:
+            graph.add_edge("planner", "writer")
+
         graph.add_edge("writer", "grounder")
         graph.add_edge("grounder", "reviewer")
 
@@ -52,6 +68,7 @@ class ScenarioWriterGraph:
         return graph.compile()
 
     async def _planner_node(self, state: AgentState) -> Dict:
+        print("📍 [Graph] Running Planner...")
         input_data = {
             "concept": state["concept"],
             "assets": state.get("assets", {}),
@@ -59,38 +76,63 @@ class ScenarioWriterGraph:
             "iteration": state.get("iterations", 0) + 1,
         }
         result = await self.planner.run(input_data)
+        print("📍 [Graph] Planner complete.")
         return {"plan": result, "iterations": 1}
 
+    async def _asset_writer_node(self, state: AgentState) -> Dict:
+        if not self.asset_writer:
+            return {"items": [], "npcs": [], "enemies": []}
+
+        print("📍 [Graph] Running Asset Writer...")
+        plan = state["plan"]
+        result = await self.asset_writer.run(
+            {
+                "item_manifest": plan.get("item_manifest", []),
+                "npc_manifest": plan.get("npc_manifest", []),
+                "enemy_manifest": plan.get("enemy_manifest", []),
+            }
+        )
+        print("📍 [Graph] Asset Writer complete.")
+        return {
+            "items": result.get("items", []),
+            "npcs": result.get("npcs", []),
+            "enemies": result.get("enemies", []),
+        }
+
     async def _writer_node(self, state: AgentState) -> Dict:
+        print("📍 [Graph] Running Sequence Writer...")
+        # Pass the entire catalog to the sequence writer
         result = await self.writer.run(
             {
                 "plan": state["plan"],
+                "items": state.get("items", []),
+                "npcs": state.get("npcs", []),
+                "enemies": state.get("enemies", []),
                 "assets": state.get("assets", {}),
             }
         )
+        print("📍 [Graph] Sequence Writer complete.")
         return {"content": result}
 
     async def _grounder_node(self, state: AgentState) -> Dict:
-        # For Strategy 1 (user said delegate to Rule Engine),
-        # we might do it in the Engine
-        # but here we keep the search logic as a fallback/internal grounding.
-        if not self.rule_engine or state.get("assets"):
-            return {"content": state["content"]}
-
-        content = state["content"]
-        # TODO: Implement internal search/matching logic if Rule Engine is not available
-        return {"content": content}
+        return {"content": state["content"]}
 
     async def _reviewer_node(self, state: AgentState) -> Dict:
+        print("📍 [Graph] Running Reviewer...")
         result = await self.reviewer.run(
             {
                 "plan": state["plan"],
+                "items": state.get("items", []),
+                "npcs": state.get("npcs", []),
+                "enemies": state.get("enemies", []),
                 "content": state["content"],
                 "previous_reviews": state.get("reviews", []),
             }
         )
+        is_consistent = result.get("is_consistent", False)
+        print(f"📍 [Graph] Reviewer complete. (Consistent: {is_consistent})")
         return {
-            "is_consistent": result.get("is_consistent", False),
+            "is_consistent": is_consistent,
             "reviews": result.get("reviews", []),
         }
 
@@ -106,6 +148,9 @@ class ScenarioWriterGraph:
             "concept": concept,
             "assets": assets or {},
             "plan": {},
+            "items": [],
+            "npcs": [],
+            "enemies": [],
             "content": {},
             "reviews": [],
             "is_consistent": False,
