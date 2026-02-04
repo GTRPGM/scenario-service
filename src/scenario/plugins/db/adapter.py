@@ -3,7 +3,6 @@ import logging
 from typing import Any, Dict, List, Union
 from uuid import UUID
 
-from scenario.core.config import settings
 from scenario.infra.db.database import DatabaseHandler
 from scenario.infra.db.query_loader import QueryLoader
 from scenario.interfaces.scenario import ScenarioRepository
@@ -19,12 +18,12 @@ class PostgresScenarioAdapter(ScenarioRepository):
     async def save_scenario(self, concept: str, data: Dict[str, Any]) -> UUID:
         print(f"💾 [DB] Starting save_scenario for: {data.get('title')}")
 
-        uuid_row = await self.db.fetchrow("SELECT gen_random_uuid() as id")
+        uuid_row = await self.db.fetchrow(self.loader.load_sql("generate_uuid"))
         scenario_id = uuid_row["id"]
         scenario_id_str = str(scenario_id)
 
         await self.db.execute(
-            "INSERT INTO scenarios (id, title, concept) VALUES ($1, $2, $3)",
+            self.loader.load_sql("insert_scenario_master"),
             scenario_id,
             data.get("title", "Untitled"),
             concept,
@@ -187,21 +186,87 @@ class PostgresScenarioAdapter(ScenarioRepository):
                         ),
                     )
                     ent_count += 1
-        print(f"✅ [DB] {ent_count} Entities created and linked.")
+        all_npc_ids = {str(n["scenario_npc_id"]) for n in data.get("npcs", [])}
+        linked_npc_ids = set()
+        all_enemy_ids = {str(e["scenario_enemy_id"]) for e in data.get("enemies", [])}
+        linked_enemy_ids = set()
+        all_item_ids = {str(i["item_id"]) for i in data.get("items", [])}
+        linked_item_ids = set()
 
-        rel_cypher = """
-        SELECT * FROM cypher('scenario_graph', $$
-            MATCH (s:Scenario {id: $scenario_id})-[:HAS_ACT]->()
-                  -[:HAS_SEQUENCE]->()-[:HAS_ENTITY]->(a:EntityTemplate {id: $from_id})
-            MATCH (s)-[:HAS_ACT]->()
-                  -[:HAS_SEQUENCE]->()-[:HAS_ENTITY]->(b:EntityTemplate {id: $to_id})
-            CREATE (a)-[:RELATION {
-                type: $relation_type,
-                affinity: $affinity,
-                meta: $meta
-            }]->(b)
-        $$, $1) as (v agtype);
-        """  # noqa: E501
+        for seq in data.get("sequences", []):
+            for n_id in seq.get("npcs", []):
+                linked_npc_ids.add(str(n_id))
+            for e_id in seq.get("enemies", []):
+                linked_enemy_ids.add(str(e_id))
+            for i_id in seq.get("items", []):
+                linked_item_ids.add(str(i_id))
+
+        # Unplaced NPCs
+        remaining_npc_ids = all_npc_ids - linked_npc_ids
+        npc_cypher = self.loader.load_cypher("create_unplaced_npc")
+        for n_id in remaining_npc_ids:
+            n = npc_map[n_id]
+            await self.db.execute(
+                npc_cypher,
+                json.dumps(
+                    {
+                        "scenario_id": scenario_id_str,
+                        "ent_id": n["scenario_npc_id"],
+                        "master_id": n.get("master_id"),
+                        "name": n["name"],
+                        "description": n.get("description", ""),
+                        "tags": n.get("tags", []),
+                        "state": n.get("state", {}),
+                    }
+                ),
+            )
+            ent_count += 1
+
+        # Unplaced Enemies
+        remaining_enemy_ids = all_enemy_ids - linked_enemy_ids
+        enemy_cypher = self.loader.load_cypher("create_unplaced_enemy")
+        for e_id in remaining_enemy_ids:
+            e = enemy_map[e_id]
+            await self.db.execute(
+                enemy_cypher,
+                json.dumps(
+                    {
+                        "scenario_id": scenario_id_str,
+                        "ent_id": e["scenario_enemy_id"],
+                        "master_id": e.get("master_id"),
+                        "name": e["name"],
+                        "description": e.get("description", ""),
+                        "tags": e.get("tags", []),
+                        "state": e.get("state", {}),
+                        "dropped_items": [str(i) for i in e.get("dropped_items", [])],
+                    }
+                ),
+            )
+            ent_count += 1
+
+        # Unplaced Items
+        remaining_item_ids = all_item_ids - linked_item_ids
+        item_cypher = self.loader.load_cypher("create_unplaced_item")
+        for i_id in remaining_item_ids:
+            i = item_map[i_id]
+            await self.db.execute(
+                item_cypher,
+                json.dumps(
+                    {
+                        "scenario_id": scenario_id_str,
+                        "ent_id": str(i["item_id"]),
+                        "master_id": i.get("master_id"),
+                        "name": i["name"],
+                        "description": i.get("description", ""),
+                        "meta": i.get("meta", {}),
+                    }
+                ),
+            )
+            ent_count += 1
+
+        print(f"✅ [DB] {ent_count} Total Entities created (including unplaced).")
+
+        rel_cypher = self.loader.load_cypher("create_relation")
         for rel in data.get("relations", []):
             await self.db.execute(
                 rel_cypher,
@@ -248,12 +313,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
             except (ValueError, TypeError):
                 scenario_uuid = None
 
-        scenario_query = """
-            SELECT id, title, concept, state_manager_id
-            FROM scenarios
-            WHERE id = $1 OR state_manager_id = $2
-            ORDER BY updated_at DESC LIMIT 1
-        """
+        scenario_query = self.loader.load_sql("get_scenario_master")
         sql_row = await self.db.fetchrow(
             scenario_query,
             scenario_uuid,
@@ -264,11 +324,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
         internal_id = str(sql_row["id"]) if sql_row else str(scenario_id)
         params = json.dumps({"scenario_id": internal_id})
 
-        base_query = f"""
-            SELECT * FROM cypher('{settings.SCENARIO_GRAPH_NAME}', $$
-                MATCH (s:Scenario {{id: $scenario_id}}) RETURN s
-            $$, $1) AS (s agtype);
-        """
+        base_query = self.loader.load_cypher("get_scenario_base_node")
         base_row = await self.db.fetchrow(base_query, params)
         if not base_row:
             return {}
@@ -297,12 +353,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
         }
 
         # 2. Fetch Acts (Independent Query)
-        act_query = f"""
-            SELECT * FROM cypher('{settings.SCENARIO_GRAPH_NAME}', $$
-                MATCH (s:Scenario {{id: $scenario_id}})-[:HAS_ACT]->(a:Act)
-                RETURN a.id as id, a
-            $$, $1) AS (id agtype, a agtype);
-        """
+        act_query = self.loader.load_cypher("get_scenario_acts")
         act_rows, act_map = await self.db.fetch(act_query, params), {}
         for r in act_rows:
             a_id = self._clean_agtype(r["id"])
@@ -320,14 +371,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
             scenario["acts"].append(act_data)
 
         # 3. Fetch Sequences (Independent Query)
-        seq_query = f"""
-        SELECT * FROM cypher('{settings.SCENARIO_GRAPH_NAME}', $$
-            MATCH (s:Scenario {{id: $scenario_id}})-[:HAS_ACT]->(a:Act)
-                  -[:HAS_SEQUENCE]->(seq:Sequence)
-            OPTIONAL MATCH (seq)-[:LOCATED_AT]->(loc:Location)
-            RETURN a.id as act_id, seq.id as seq_id, seq, loc
-        $$, $1) AS (act_id agtype, seq_id agtype, seq agtype, loc agtype);
-        """
+        seq_query = self.loader.load_cypher("get_scenario_sequences")
         seq_rows, seq_map = await self.db.fetch(seq_query, params), {}
         for r in seq_rows:
             a_id = self._clean_agtype(r["act_id"])
@@ -367,13 +411,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
                 act_map[a_id]["sequences"].append(s_id)
 
         # 4. Fetch Entities (Independent Query)
-        ent_query = f"""
-        SELECT * FROM cypher('{settings.SCENARIO_GRAPH_NAME}', $$
-            MATCH (s:Scenario {{id: $scenario_id}})-[:HAS_ACT]->()
-                  -[:HAS_SEQUENCE]->(seq:Sequence)-[:HAS_ENTITY]->(e:EntityTemplate)
-            RETURN seq.id as seq_id, e.id as ent_id, e
-        $$, $1) AS (seq_id agtype, ent_id agtype, e agtype);
-        """
+        ent_query = self.loader.load_cypher("get_scenario_entities")
         ent_rows, npc_cat, enemy_cat, item_cat = (
             await self.db.fetch(ent_query, params),
             {},
@@ -381,38 +419,70 @@ class PostgresScenarioAdapter(ScenarioRepository):
             {},
         )
         for r in ent_rows:
-            s_id = self._clean_agtype(r["seq_id"])
-            e_id = self._clean_agtype(r["ent_id"])
-            e = self._get_props(r["e"])
-            cat = e.get("category")
-            ent_common = {
-                "name": e.get("name", ""),
-                "description": e.get("description", ""),
-                "master_id": e.get("master_id"),
-                "tags": e.get("tags", []),
-                "state": e.get("state", {}),
-                "meta": e.get("meta", {}),
-            }
+            # Process placed entities
+            if r["e"]:
+                s_id = self._clean_agtype(r["seq_id"])
+                e_id = self._clean_agtype(r["ent_id"])
+                e = self._get_props(r["e"])
+                cat = e.get("category")
+                print(f"DEBUG: Found entity s_id={s_id}, e_id={e_id}, cat={cat}")
+                ent_common = {
+                    "name": e.get("name", ""),
+                    "description": e.get("description", ""),
+                    "master_id": e.get("master_id"),
+                    "tags": e.get("tags", []),
+                    "state": e.get("state", {}),
+                    "meta": e.get("meta", {}),
+                }
 
-            if cat == "NPC":
-                ent_common["scenario_npc_id"] = e_id
-                npc_cat[e_id] = ent_common
-                if s_id in seq_map and e_id not in seq_map[s_id]["npcs"]:
-                    seq_map[s_id]["npcs"].append(e_id)
-            elif cat == "ENEMY":
-                ent_common["scenario_enemy_id"] = e_id
-                ent_common["dropped_items"] = [
-                    self._extract_int_id(i) for i in e.get("dropped_items", [])
-                ]
-                enemy_cat[e_id] = ent_common
-                if s_id in seq_map and e_id not in seq_map[s_id]["enemies"]:
-                    seq_map[s_id]["enemies"].append(e_id)
-            elif cat == "ITEM":
-                item_num = self._extract_int_id(e_id)
-                ent_common["item_id"] = item_num
-                item_cat[str(item_num)] = ent_common
-                if s_id in seq_map and str(item_num) not in seq_map[s_id]["items"]:
-                    seq_map[s_id]["items"].append(str(item_num))
+                if cat == "NPC":
+                    ent_common["scenario_npc_id"] = e_id
+                    npc_cat[e_id] = ent_common
+                    print(f"DEBUG: s_id in seq_map? {s_id in seq_map}")
+                    if s_id in seq_map and e_id not in seq_map[s_id]["npcs"]:
+                        seq_map[s_id]["npcs"].append(e_id)
+                        print(f"DEBUG: Added NPC {e_id} to sequence {s_id}")
+                elif cat == "ENEMY":
+                    ent_common["scenario_enemy_id"] = e_id
+                    ent_common["dropped_items"] = [
+                        self._extract_int_id(i) for i in e.get("dropped_items", [])
+                    ]
+                    enemy_cat[e_id] = ent_common
+                    if s_id in seq_map and e_id not in seq_map[s_id]["enemies"]:
+                        seq_map[s_id]["enemies"].append(e_id)
+                elif cat == "ITEM":
+                    item_num = self._extract_int_id(e_id)
+                    ent_common["item_id"] = item_num
+                    item_cat[str(item_num)] = ent_common
+                    if s_id in seq_map and str(item_num) not in seq_map[s_id]["items"]:
+                        seq_map[s_id]["items"].append(str(item_num))
+
+            # Process unplaced entities
+            if r["ue"]:
+                ue_id = self._clean_agtype(r["uent_id"])
+                ue = self._get_props(r["ue"])
+                cat = ue.get("category")
+                ent_common = {
+                    "name": ue.get("name", ""),
+                    "description": ue.get("description", ""),
+                    "master_id": ue.get("master_id"),
+                    "tags": ue.get("tags", []),
+                    "state": ue.get("state", {}),
+                    "meta": ue.get("meta", {}),
+                }
+                if cat == "NPC":
+                    ent_common["scenario_npc_id"] = ue_id
+                    npc_cat[ue_id] = ent_common
+                elif cat == "ENEMY":
+                    ent_common["scenario_enemy_id"] = ue_id
+                    ent_common["dropped_items"] = [
+                        self._extract_int_id(i) for i in ue.get("dropped_items", [])
+                    ]
+                    enemy_cat[ue_id] = ent_common
+                elif cat == "ITEM":
+                    item_num = self._extract_int_id(ue_id)
+                    ent_common["item_id"] = item_num
+                    item_cat[str(item_num)] = ent_common
 
         scenario["npcs"], scenario["enemies"], scenario["items"] = (
             list(npc_cat.values()),
@@ -420,16 +490,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
             list(item_cat.values()),
         )
 
-        rel_query = f"""
-            SELECT * FROM cypher('{settings.SCENARIO_GRAPH_NAME}', $$
-                MATCH (scenario:Scenario {{id: $scenario_id}})-[:HAS_ACT]->()
-                      -[:HAS_SEQUENCE]->()-[:HAS_ENTITY]->(e1)
-                MATCH (e1)-[r:RELATION]->(e2)
-                RETURN DISTINCT e1.id as from_id, e2.id as to_id,
-                       r.type as rel_type, r.affinity as affinity, r.meta as meta
-            $$, $1) AS (from_id agtype, to_id agtype, rel_type agtype,
-                        affinity agtype, meta agtype);
-        """
+        rel_query = self.loader.load_cypher("get_scenario_relations")
         rel_rows = await self.db.fetch(rel_query, params)
         for r in rel_rows:
             f_id, t_id = (
@@ -464,6 +525,13 @@ class PostgresScenarioAdapter(ScenarioRepository):
             return None
         if not isinstance(value, str):
             return value
+
+        # Remove Apache AGE type suffixes if present
+        for suffix in ["::vertex", "::edge", "::path", "::agtype"]:
+            if value.endswith(suffix):
+                value = value[: -len(suffix)]
+                break
+
         if value.startswith('"') and value.endswith('"'):
             value = value[1:-1]
         try:
@@ -481,21 +549,15 @@ class PostgresScenarioAdapter(ScenarioRepository):
     ) -> None:
         if provider == "state_manager":
             await self.db.execute(
-                """
-                UPDATE scenarios
-                SET state_manager_id = $1, updated_at = CURRENT_TIMESTAMP
-                WHERE id = $2
-                """,
+                self.loader.load_sql("update_scenario_state_manager_id"),
                 external_id,
                 scenario_id,
             )
-        query = f"""
-            SELECT * FROM cypher('{settings.SCENARIO_GRAPH_NAME}', $$
-                MATCH (s:Scenario {{id: $scenario_id}})
-                SET s.{provider}_id = $external_id
-                RETURN s
-            $$, $1) AS (s agtype);
-        """
+
+        # Load and format the Cypher query dynamically
+        cypher_template = self.loader.load_cypher("update_scenario_external_id")
+        query = cypher_template.format(provider=provider)
+
         await self.db.execute(
             query,
             json.dumps({"scenario_id": str(scenario_id), "external_id": external_id}),
