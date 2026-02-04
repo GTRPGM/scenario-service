@@ -365,9 +365,8 @@ class ScenarioEngine:
         validator_agent: Any,
     ) -> Dict[str, Any]:
         def normalize(val: str) -> str:
-            # Simple cleaning: lower and strip.
-            # IDs like 'act-1' should be consistent now.
-            return str(val).strip().lower()
+            # Normalize IDs: lowercase, strip, and convert underscores to hyphens
+            return str(val).strip().lower().replace("_", "-")
 
         norm_act_id = normalize(act_id)
         norm_seq_id = normalize(seq_id)
