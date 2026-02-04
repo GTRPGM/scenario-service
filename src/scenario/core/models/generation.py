@@ -1,178 +1,176 @@
-# src/scenario/core/models/generation.py
-
+import re
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, field_validator
 
 
 class ScenarioInjectNPC(BaseModel):
-    """NPC Template Data aligned with Injection Guide"""
+    """NPC entity definition (Catalog)"""
 
-    scenario_npc_id: str = Field(
-        ..., description="Unique ID within the scenario (e.g., 'npc-001')"
-    )
-    master_id: Optional[str] = Field(
-        None, description="Reference ID from Rule Engine Master Data"
-    )
-    name: str = Field(..., description="NPC Name")
-    description: str = Field("", description="Brief biography or role")
-    tags: List[str] = Field(
-        default_factory=lambda: ["npc"], description="Searchable tags"
-    )
-    state: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "numeric": {"HP": 100, "MP": 50, "SAN": 10},
-            "boolean": {},
-        },
-        description="Initial stats and flags",
-    )
+    scenario_npc_id: str
+    master_id: Optional[str] = None
+    name: str
+    description: str = ""
+    tags: List[str] = []
+    state: Dict[str, Any] = {}
 
-
-class ScenarioInjectEnemy(BaseModel):
-    """Enemy Template Data aligned with Injection Guide"""
-
-    scenario_enemy_id: str = Field(
-        ..., description="Unique ID within the scenario (e.g., 'goblin-01')"
-    )
-    master_id: Optional[str] = Field(
-        None, description="Reference ID from Rule Engine Master Data"
-    )
-    name: str = Field(..., description="Enemy Name")
-    description: str = Field("", description="Lore or combat style")
-    tags: List[str] = Field(
-        default_factory=lambda: ["enemy"], description="Category tags"
-    )
-    state: Dict[str, Any] = Field(
-        default_factory=lambda: {"numeric": {"HP": 100, "MP": 0}, "boolean": {}},
-        description="Combat stats",
-    )
-    dropped_items: List[str] = Field(
-        default_factory=list, description="List of Master Item IDs (UUID)"
-    )
+    @field_validator("scenario_npc_id", mode="before")
+    @classmethod
+    def ensure_str_id(cls, v: Any) -> str:
+        return str(v)
 
 
 class ScenarioInjectItem(BaseModel):
-    """Item Template Data aligned with Injection Guide"""
+    """Item entity definition - item_id is INT in catalog"""
 
-    item_id: str = Field(..., description="Fixed UUID for the Master Item")
-    master_id: Optional[str] = Field(
-        None, description="Reference ID from Rule Engine Master Data"
-    )
-    name: str = Field(..., description="Item Name")
-    description: str = Field("", description="Function or flavor text")
-    item_type: str = Field("misc", description="consumable, equipment, material, etc.")
-    meta: Dict[str, Any] = Field(
-        default_factory=dict, description="Custom properties like weight, price, etc."
-    )
+    item_id: int
+    master_id: Optional[str] = None
+    name: str
+    description: str = ""
+    item_type: str = "misc"
+    meta: Dict[str, Any] = {}
+
+    @field_validator("item_id", mode="before")
+    @classmethod
+    def ensure_int_id(cls, v: Any) -> int:
+        if isinstance(v, str):
+            nums = re.findall(r"\d+", v)
+            return int(nums[0]) if nums else 0
+        return int(v)
+
+
+class ScenarioInjectEnemy(BaseModel):
+    """Enemy entity definition (Catalog)"""
+
+    scenario_enemy_id: str
+    master_id: Optional[str] = None
+    name: str
+    description: str = ""
+    tags: List[str] = []
+    state: Dict[str, Any] = {}
+    dropped_items: List[int] = []
+
+    @field_validator("scenario_enemy_id", mode="before")
+    @classmethod
+    def ensure_str_id(cls, v: Any) -> str:
+        return str(v)
+
+    @field_validator("dropped_items", mode="before")
+    @classmethod
+    def ensure_list_int(cls, v: Any) -> List[int]:
+        if isinstance(v, list):
+            res = []
+            for i in v:
+                if isinstance(i, str):
+                    nums = re.findall(r"\d+", i)
+                    if nums:
+                        res.append(int(nums[0]))
+                else:
+                    res.append(int(i))
+            return res
+        return []
 
 
 class ScenarioInjectRelation(BaseModel):
-    """Relation (Edge) between Entities (Apache AGE)"""
+    """Global relations between entities"""
 
-    from_id: str = Field(
-        ..., description="scenario_npc_id or scenario_enemy_id of the source"
-    )
-    to_id: str = Field(
-        ..., description="scenario_npc_id or scenario_enemy_id of the target"
-    )
-    relation_type: str = Field("neutral", description="friend, foe, rival, etc.")
-    affinity: int = Field(50, ge=0, le=100)
-    meta: Dict[str, Any] = Field(default_factory=dict)
-
-
-class ActPlan(BaseModel):
-    id: str = Field(..., description="Act ID")
-    name: str = Field(..., description="Act Name (Thematic)")
-    region_name: str = Field(
-        ..., description="The physical region/location this act takes place in"
-    )
-    region_description: str = Field(
-        ..., description="Detailed description of the whole region"
-    )
-    goal: str = Field(..., description="Main objective of this act")
-    exit_criteria: str = Field(
-        ...,
-        description="Condition to trigger transition to the next Act (Travel)",
-    )
-    sequences: List[str] = Field(
-        ..., description="List of POI/Event sequences available in this region"
-    )
-
-
-class PlannerOutput(BaseModel):
-    title: str = Field(..., description="Scenario Title")
-    description: str = Field(..., description="Long summary of the scenario")
-    difficulty: str = Field("normal", description="easy, normal, hard, nightmare")
-    genre: str = Field(..., description="fantasy, sci-fi, horror, etc.")
-    tags: List[str] = Field(default_factory=list, description="Scenario-level tags")
-    total_acts: int = Field(..., description="Number of Acts (Regions)", ge=1)
-    acts: List[ActPlan]
-    total_summary: str = Field(..., description="Brief scenario summary")
-    relations: List[ScenarioInjectRelation] = Field(
-        default_factory=list,
-        description="Global relations between major entities or factions",
-    )
-
-
-class SequenceDetail(BaseModel):
-    id: str = Field(..., description="Sequence ID")
-    name: str = Field(..., description="Sequence Name")
-    sequence_type: str = Field(..., description="Type (Combat, Exploration, etc.)")
-    location_name: str = Field(..., description="Location name")
-    location_master_id: Optional[str] = Field(
-        None, description="Reference ID from Rule Engine for the location"
-    )
-    location_theme: str = Field(..., description="Location theme")
-    location_description: str = Field(..., description="Location description")
-    danger_min: int = Field(default=1, description="Minimum danger level (1-10)")
-    danger_max: int = Field(default=10, description="Maximum danger level (1-10)")
-    description: str = Field(..., description="Narrative description")
-    goal: str = Field(..., description="Sequence goal")
-    exit_triggers: List[str] = Field(..., description="Exit conditions")
-
-    npcs: List[ScenarioInjectNPC] = Field(default_factory=list)
-    enemies: List[ScenarioInjectEnemy] = Field(default_factory=list)
-    items: List[ScenarioInjectItem] = Field(default_factory=list)
-
-
-class WriterOutput(BaseModel):
-    sequences: List[SequenceDetail]
+    from_id: str
+    to_id: str
+    relation_type: str = "neutral"
+    affinity: int = 50
+    meta: Dict[str, Any] = {}
 
 
 class ActInject(BaseModel):
-    """Act data for State Manager injection (Flat)"""
+    """Act structure"""
 
     id: str
     name: str
-    description: str
-    sequences: List[str]
+    region_name: str
+    region_description: str = ""
+    goal: str
+    exit_criteria: str
+    sequences: List[str] = []
 
 
 class SequenceInject(BaseModel):
-    """Sequence data for State Manager injection (Flat)"""
+    """Sequence structure - REFS ARE STRICT STRINGS"""
 
     id: str
     name: str
+    sequence_type: str = "Exploration"
     location_name: str
+    location_master_id: Optional[str] = None
+    location_theme: str = ""
+    location_description: str = ""
+    danger_min: int = 1
+    danger_max: int = 10
     description: str
-    npcs: List[str]
-    enemies: List[str]
-    items: List[str]
-    exit_triggers: List[str]
+    goal: str
+    exit_triggers: List[str] = []
+    npcs: List[str] = []
+    enemies: List[str] = []
+    items: List[str] = []
 
 
 class ScenarioInjectSchema(BaseModel):
-    """Final Scenario data for State Manager injection"""
+    """Final structure for State Manager (Flat & Strictly Typed)"""
 
+    scenario_id: Optional[str] = None
+    state_manager_id: Optional[str] = None
+    title: str
+    summary: str = ""
+    description: str = ""
+    difficulty: str = "normal"
+    genre: str = "fantasy"
+    tags: List[str] = []
+    total_acts: int = 1
+    acts: List[ActInject] = []
+    sequences: List[SequenceInject] = []
+    npcs: List[ScenarioInjectNPC] = []
+    enemies: List[ScenarioInjectEnemy] = []
+    items: List[ScenarioInjectItem] = []
+    relations: List[ScenarioInjectRelation] = []
+
+
+# --- Agent Generation Models (Restored with clear structure) ---
+
+
+class ActPlan(BaseModel):
+    id: str
+    name: str
+    region_name: str
+    description: str
+    goal: str
+    exit_criteria: str
+    sequences: List[str]
+
+
+class EntityPlan(BaseModel):
+    id: str
+    name: str
+    concept: str
+
+
+class PlannerOutput(BaseModel):
     title: str
     description: str
-    summary: str
-    acts: List[ActInject]
-    sequences: List[SequenceInject]
-    npcs: List[ScenarioInjectNPC]
-    enemies: List[ScenarioInjectEnemy]
-    items: List[ScenarioInjectItem]
-    relations: List[ScenarioInjectRelation]
+    difficulty: str = "normal"
+    genre: str = "fantasy"
+    tags: List[str] = []
+    total_acts: int
+    acts: List[ActPlan]
+    item_manifest: List[EntityPlan] = []
+    npc_manifest: List[EntityPlan] = []
+    enemy_manifest: List[EntityPlan] = []
+    total_summary: str
+    relations: List[ScenarioInjectRelation] = []
+
+
+class AssetWriterOutput(BaseModel):
+    items: List[Dict[str, Any]] = []
+    npcs: List[Dict[str, Any]] = []
+    enemies: List[Dict[str, Any]] = []
 
 
 class ReviewerOutput(BaseModel):
@@ -180,32 +178,36 @@ class ReviewerOutput(BaseModel):
     reviews: List[str]
 
 
-class ValidationRequest(BaseModel):
-    scenario_id: str
-    current_act: ActPlan = Field(..., description="Details of the current act/region")
-    current_sequence: SequenceDetail = Field(
-        ..., description="Details of the sequence the player is currently in"
-    )
-    available_sequences: List[SequenceDetail] = Field(
-        ..., description="All POIs available in this act for jumping"
-    )
-    user_input: str
-    context: Dict[str, Any] = Field(
-        default_factory=dict, description="Additional graph context (e.g., relations)"
-    )
+class SequenceWriteDetail(BaseModel):
+    id: str
+    name: str
+    sequence_type: str
+    location_name: str
+    location_theme: str
+    location_description: str
+    danger_min: int = 1
+    danger_max: int = 10
+    description: str
+    goal: str
+    exit_triggers: List[str]
+    npcs: List[str]
+    enemies: List[str]
+    items: List[str]
+
+
+class WriterOutput(BaseModel):
+    sequences: List[SequenceWriteDetail]
 
 
 class ValidationOutput(BaseModel):
-    is_triggered: bool = Field(
-        ..., description="Whether the transition condition is met"
-    )
+    is_triggered: bool
 
-    reason: str = Field(..., description="Reasoning for the decision")
+    reason: str
+
+    session_id: Optional[str] = None
 
     next_act_id: Optional[str] = None
 
     next_seq_id: Optional[str] = None
 
-    suggested_narration: Optional[str] = Field(
-        None, description="GM narration for the transition"
-    )
+    suggested_narration: Optional[str] = None

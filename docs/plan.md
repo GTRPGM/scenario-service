@@ -11,25 +11,16 @@
 ## 현황
 
 - **단계**: Phase 1 진행 중 (Scenario Writer 연동 및 환경 최적화)
-- **이슈**: `docker-compose.local.yml` 실행 시 `LLM_GATEWAY_URL` 오버라이드 설정 오류로 인해 `test-generation` 실패 현상 발생
-- **조치**: `docker-compose.local.yml`에서 잘못된 환경 변수 오버라이드 제거 및 `.env` 설정 우선순위 보장
-- **환경**:
-  - Language: Python 3.11+
-  - Package Manager: uv
-  - Frameworks: FastAPI, LangChain Core
-  - Database: PostgreSQL (with Apache AGE)
-  - Port: 8040 (Main Service)
-
----
-
-## [Phase 0] Core Runtime (Scenario Manager) - Done
-
-**목표**: 액션-시퀀스-액트 구조를 처리하는 핵심 엔진 및 DB 스키마 구축
-
-### 1. 계층형 시나리오 데이터 모델링
-
-- [x] **PostgreSQL/AGE 스키마 설계**
-- [x] **데이터 접근 레이어**
+- **이슈**:
+  - `pytest`가 모킹된 데이터로만 성공하고 실제 LLM/DB 연동 시의 데이터 정합성을 잡지 못함 (conftest.py에서 Engine이 통째로 모킹됨)
+  - `ScenarioEngine._package_scenario`에서 `relations`의 ID를 클리닝하지 않아 그래프 DB 저장 시 노드 매칭 실패 (npc-01 vs 01)
+  - `planner.txt`에서 생성된 ID와 `AssetWriter`가 정규화한 ID 간의 불일치 가능성
+  - **[CRITICAL]** 시나리오 저장 시 Apache AGE Cypher 쿼리에서 `Scenario ID`로 앵커링(Anchoring)하지 않아, 기존에 저장된 모든 시나리오의 노드들과 매칭되어 기하급수적으로 관계(Relation) 및 노드가 생성되는 문제 발견 (디스크 급증 및 프로세스 다운의 원인)
+- **조치**:
+  - `ScenarioEngine`의 패키징 로직 보완 (Relation ID 클리닝 추가)
+  - ID 정문화 규칙을 `_clean_id` 유틸리티로 통합 및 강화
+  - 테스트 코드에서 실제 엔진 로직을 검증할 수 있도록 모킹 범위 조정
+  - **[FIX]** 모든 Cypher 쿼리에 `scenario_id` 기반의 매칭 가드 추가하여 현재 시나리오 범위 내에서만 노드 매칭 및 생성되도록 수정
 
 ---
 
@@ -41,6 +32,10 @@
 
 - [x] **계층형 프롬프트 엔지니어링**
 - [x] **LLM Gateway 연동**
+- [x] **ID 정합성 및 패키징 로직 수정 (Done)**
+  - [x] Relation 및 Act 내 ID 참조 클리닝 로직 추가
+  - [x] Item ID의 정수/문자열 변환 일관성 확보
+  - [x] API 엔드포인트용 핵심 엔진 메서드 구현
 
 ### 2. 마스터 데이터 기반 정합성 강화 (Grounding) - Next
 
@@ -56,9 +51,12 @@
 
 **목표**: 서사적 완성도 및 동적 대응 강화
 
+### 1. 시나리오 진행 검증 (Check) - In Progress
+
+- [x] **GM 통신 정합성 강화**
+  - [x] `ValidationOutput` 모델에 `session_id` 필드 추가
+  - [x] `SessionCheckRequest`에 `scenario_id` 추가하여 GM 요청 구조와 일치
+  - [x] `session_id` 기반 세션 상태(Act, Sequence) 자동 조회 로직 보완
+  - [ ] `scenario_id` 조회 시 내부 ID와 State Manager ID 동시 지원 로직 강화
 - [ ] **멀티 에이전트 서사 검토**
   - [ ] 인과관계 및 개연성 검토 에이전트 도입
-- [ ] **고도화된 판정 제안**
-  - [ ] 시나리오적 긴장감을 고려한 수치 보정 범위(Envelope) 제안 로직
-- [ ] **운영 모니터링**
-  - [ ] 세션별 시나리오 이행률 및 분기 통계 수집

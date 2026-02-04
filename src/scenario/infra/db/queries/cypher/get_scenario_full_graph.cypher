@@ -1,32 +1,33 @@
 -- src/scenario/infra/db/queries/cypher/get_scenario_full_graph.cypher
 
 SELECT * FROM cypher('scenario_graph', $$
-    MATCH (s:Scenario {id: $scenario_id})
-    OPTIONAL MATCH (s)-[:HAS_ACT]->(a:Act)
-    OPTIONAL MATCH (a)-[:HAS_SEQUENCE]->(seq:Sequence)
-    OPTIONAL MATCH (seq)-[:LOCATED_AT]->(l:Location)
-    OPTIONAL MATCH (seq)-[:HAS_ENTITY]->(e:EntityTemplate)
+    MATCH (scenario_node:Scenario)
+    WHERE scenario_node.id = $scenario_id
+    OPTIONAL MATCH (scenario_node)-[:HAS_ACT]->(act_node:Act)
+    OPTIONAL MATCH (act_node)-[:HAS_SEQUENCE]->(seq_node:Sequence)
+    OPTIONAL MATCH (seq_node)-[:LOCATED_AT]->(loc_node:Location)
+    OPTIONAL MATCH (seq_node)-[:HAS_ENTITY]->(entity_node:EntityTemplate)
     RETURN
-        s.id as scenario_id,
-        s.title as title,
-        s.concept as concept,
-        s.summary as summary,
-        s.description as description,
-        s.difficulty as difficulty,
-        s.genre as genre,
-                s.tags as tags,
-                s.total_acts as total_acts,
-                a.id as act_id, a.name as act_name, a.goal as act_goal,
-                a.region_name as act_region_name, a.region_description as act_region_desc, a.exit_criteria as act_exit,
-                seq.id as seq_id, seq.name as seq_name, seq.description as seq_desc,
-
-        seq.goal as seq_goal, seq.sequence_type as seq_type,
-        l.id as loc_master_id, l.name as loc_name, l.theme as loc_theme, l.description as loc_desc,
-        e.id as ent_id, e.master_id as ent_master_id, e.name as ent_name, e.category as ent_cat,
-        e.description as ent_desc, e.tags as ent_tags, e.state as ent_state,
-        e.meta as ent_meta, e.dropped_items as ent_drops
+        scenario_node.id as scenario_id,
+        scenario_node.state_manager_id as state_manager_id,
+        scenario_node.title as title,
+        scenario_node.concept as concept,
+        scenario_node.summary as summary,
+        scenario_node.description as description,
+        scenario_node.difficulty as difficulty,
+        scenario_node.genre as genre,
+        scenario_node.tags as tags,
+        scenario_node.total_acts as total_acts,
+        act_node.id as act_id, act_node.name as act_name, act_node.goal as act_goal,
+        act_node.region_name as act_region_name, act_node.region_description as act_region_desc, act_node.exit_criteria as act_exit,
+        seq_node.id as seq_id, seq_node.name as seq_name, seq_node.description as seq_desc,
+        seq_node.goal as seq_goal, seq_node.sequence_type as seq_type,
+        loc_node.id as loc_master_id, loc_node.name as loc_name, loc_node.theme as loc_theme, loc_node.description as loc_desc,
+        entity_node.id as ent_id, entity_node.master_id as ent_master_id, entity_node.name as ent_name, entity_node.category as ent_cat,
+        entity_node.description as ent_desc, entity_node.tags as ent_tags, entity_node.state as ent_state,
+        entity_node.meta as ent_meta, entity_node.dropped_items as ent_drops
 $$, $1) as (
-    scenario_id agtype, title agtype, concept agtype, summary agtype, description agtype,
+    scenario_id agtype, state_manager_id agtype, title agtype, concept agtype, summary agtype, description agtype,
     difficulty agtype, genre agtype, tags agtype, total_acts agtype,
     act_id agtype, act_name agtype, act_goal agtype,
     act_region_name agtype, act_region_desc agtype, act_exit agtype,

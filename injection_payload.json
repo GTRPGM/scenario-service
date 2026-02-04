@@ -1,0 +1,221 @@
+{
+  "scenario_id": "9aa66440-d7af-41ed-95f1-56a807eb818e",
+  "state_manager_id": null,
+  "title": "Galthar의 유적",
+  "summary": "",
+  "description": "",
+  "difficulty": "normal",
+  "genre": "fantasy",
+  "tags": [],
+  "total_acts": 1,
+  "acts": [
+    {
+      "id": "act_01",
+      "name": "",
+      "region_name": "",
+      "region_description": "",
+      "goal": "",
+      "exit_criteria": "",
+      "sequences": [
+        "seq_01_01",
+        "seq_01_02",
+        "seq_01_03",
+        "seq_01_04"
+      ]
+    },
+    {
+      "id": "act_02",
+      "name": "",
+      "region_name": "",
+      "region_description": "",
+      "goal": "",
+      "exit_criteria": "",
+      "sequences": [
+        "seq_02_01",
+        "seq_02_02",
+        "seq_02_03"
+      ]
+    },
+    {
+      "id": "act_03",
+      "name": "",
+      "region_name": "",
+      "region_description": "",
+      "goal": "",
+      "exit_criteria": "",
+      "sequences": [
+        "seq_03_01",
+        "seq_03_02"
+      ]
+    }
+  ],
+  "sequences": [
+    {
+      "id": "seq_01_01",
+      "name": "",
+      "sequence_type": "Exploration",
+      "location_name": "Unknown",
+      "location_master_id": null,
+      "location_theme": "",
+      "location_description": "",
+      "danger_min": 1,
+      "danger_max": 10,
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq_01_02",
+      "name": "",
+      "sequence_type": "Exploration",
+      "location_name": "Unknown",
+      "location_master_id": null,
+      "location_theme": "",
+      "location_description": "",
+      "danger_min": 1,
+      "danger_max": 10,
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq_01_03",
+      "name": "",
+      "sequence_type": "Exploration",
+      "location_name": "Unknown",
+      "location_master_id": null,
+      "location_theme": "",
+      "location_description": "",
+      "danger_min": 1,
+      "danger_max": 10,
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq_01_04",
+      "name": "",
+      "sequence_type": "Exploration",
+      "location_name": "Unknown",
+      "location_master_id": null,
+      "location_theme": "",
+      "location_description": "",
+      "danger_min": 1,
+      "danger_max": 10,
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq_02_01",
+      "name": "",
+      "sequence_type": "Exploration",
+      "location_name": "Unknown",
+      "location_master_id": null,
+      "location_theme": "",
+      "location_description": "",
+      "danger_min": 1,
+      "danger_max": 10,
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq_02_02",
+      "name": "",
+      "sequence_type": "Exploration",
+      "location_name": "Unknown",
+      "location_master_id": null,
+      "location_theme": "",
+      "location_description": "",
+      "danger_min": 1,
+      "danger_max": 10,
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq_02_03",
+      "name": "",
+      "sequence_type": "Exploration",
+      "location_name": "Unknown",
+      "location_master_id": null,
+      "location_theme": "",
+      "location_description": "",
+      "danger_min": 1,
+      "danger_max": 10,
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq_03_01",
+      "name": "",
+      "sequence_type": "Exploration",
+      "location_name": "Unknown",
+      "location_master_id": null,
+      "location_theme": "",
+      "location_description": "",
+      "danger_min": 1,
+      "danger_max": 10,
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq_03_02",
+      "name": "",
+      "sequence_type": "Exploration",
+      "location_name": "Unknown",
+      "location_master_id": null,
+      "location_theme": "",
+      "location_description": "",
+      "danger_min": 1,
+      "danger_max": 10,
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    }
+  ],
+  "npcs": [],
+  "enemies": [],
+  "items": [],
+  "relations": [
+    {
+      "from_id": "npc_03",
+      "to_id": "enemy_03",
+      "relation_type": "소속",
+      "affinity": 100,
+      "meta": {
+        "reason": "감시자는 봉인된 존재를 봉인하고 있다."
+      }
+    }
+  ]
+}

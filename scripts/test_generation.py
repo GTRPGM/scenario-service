@@ -5,13 +5,13 @@ import sys
 
 import httpx
 
-SCENARIO_SERVICE_URL = "http://localhost:8040"  # 시나리오 서비스 주소 (8040 포트)
+SCENARIO_SERVICE_URL = "http://localhost:8030"  # 시나리오 서비스 주소
 
 
 async def test_scenario_generation(concept: str):
     print(f"[*] 시나리오 생성 요청 중... 컨셉: {concept}")
 
-    url = f"{SCENARIO_SERVICE_URL}/api/v1/scenario/generate"
+    url = f"{SCENARIO_SERVICE_URL}/api/v1/generation/pure"
     payload = {"concept": concept}
 
     async with httpx.AsyncClient(

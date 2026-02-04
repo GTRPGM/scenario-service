@@ -1,0 +1,139 @@
+{
+    "title": "The Lost Kingdom",
+    "description": "A brave adventurer seeks to reclaim the lost kingdom",
+    "acts": [
+        {
+            "id": "act-1",
+            "name": "The Beginning",
+            "description": "The hero starts their journey in the starting town",
+            "exit_criteria": "Complete all sequences in act-1",
+            "sequences": [
+                "seq-1",
+                "seq-2"
+            ]
+        },
+        {
+            "id": "act-2",
+            "name": "The Confrontation",
+            "description": "Face the dark lord",
+            "exit_criteria": "Defeat the boss",
+            "sequences": [
+                "seq-3"
+            ]
+        }
+    ],
+    "sequences": [
+        {
+            "id": "seq-1",
+            "name": "Town Square",
+            "location_name": "Starting Town",
+            "description": "The central plaza of the starting town",
+            "goal": "Talk to the elder and gather information",
+            "exit_triggers": [
+                "talk_to_elder",
+                "receive_quest"
+            ],
+            "npcs": [
+                "npc-elder",
+                "npc-merchant"
+            ],
+            "enemies": [],
+            "items": []
+        }
+    ],
+    "npcs": [
+        {
+            "scenario_npc_id": "npc-elder",
+            "name": "Village Elder",
+            "description": "A wise old man who knows the history of the kingdom",
+            "tags": [
+                "quest_giver",
+                "friendly"
+            ],
+            "state": {
+                "mood": "worried",
+                "quest_given": false
+            }
+        },
+        {
+            "scenario_npc_id": "npc-merchant",
+            "name": "Traveling Merchant",
+            "description": "A merchant selling various goods",
+            "tags": [
+                "shop",
+                "friendly"
+            ],
+            "state": {
+                "inventory_restocked": true
+            }
+        }
+    ],
+    "enemies": [
+        {
+            "scenario_enemy_id": "enemy-goblin",
+            "name": "Forest Goblin",
+            "description": "A small but vicious goblin",
+            "tags": [
+                "weak",
+                "melee"
+            ],
+            "state": {
+                "hp": 30,
+                "attack": 5
+            },
+            "dropped_items": [
+                1
+            ]
+        },
+        {
+            "scenario_enemy_id": "enemy-wolf",
+            "name": "Shadow Wolf",
+            "description": "A wolf corrupted by dark magic",
+            "tags": [
+                "medium",
+                "fast"
+            ],
+            "state": {
+                "hp": 50,
+                "attack": 8
+            },
+            "dropped_items": [
+                2
+            ]
+        }
+    ],
+    "items": [
+        {
+            "item_id": 1,
+            "name": "Healing Potion",
+            "description": "Restores 50 HP",
+            "item_type": "consumable",
+            "meta": {
+                "heal_amount": 50
+            }
+        },
+        {
+            "item_id": 2,
+            "name": "Wolf Fang",
+            "description": "A sharp fang from a shadow wolf",
+            "item_type": "material",
+            "meta": {
+                "sell_price": 20
+            }
+        }
+    ],
+    "relations": [
+        {
+            "from_id": "npc-elder",
+            "to_id": "npc-merchant",
+            "relation_type": "friend",
+            "affinity": 80
+        },
+        {
+            "from_id": "enemy-goblin",
+            "to_id": "enemy-wolf",
+            "relation_type": "ally",
+            "affinity": 60
+        }
+    ]
+}

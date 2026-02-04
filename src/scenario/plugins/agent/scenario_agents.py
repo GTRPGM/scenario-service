@@ -35,6 +35,13 @@ class WriterAgent(BaseScenarioAgent):
         super().__init__(llm, loader, "writer", WriterOutput)
 
 
+class AssetWriterAgent(BaseScenarioAgent):
+    def __init__(self, llm: LLMPort, loader: PromptLoader):
+        from scenario.core.models.generation import AssetWriterOutput
+
+        super().__init__(llm, loader, "asset_writer", AssetWriterOutput)
+
+
 class ReviewerAgent(BaseScenarioAgent):
     def __init__(self, llm: LLMPort, loader: PromptLoader):
         super().__init__(llm, loader, "reviewer", ReviewerOutput)

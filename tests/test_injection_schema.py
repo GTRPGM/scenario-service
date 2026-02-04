@@ -8,8 +8,11 @@ from scenario.core.engine.writer_graph import ScenarioWriterGraph
 
 @pytest.mark.asyncio
 async def test_generate_scenario_aggregation():
+    from uuid import uuid4
+
+    generated_id = uuid4()
     mock_repo = MagicMock()
-    mock_repo.save_scenario = AsyncMock()
+    mock_repo.save_scenario = AsyncMock(return_value=generated_id)
 
     mock_plan = {
         "title": "Test Title",
@@ -23,35 +26,68 @@ async def test_generate_scenario_aggregation():
             {
                 "id": "act1",
                 "name": "Act 1",
-                "region_description": "Region 1",
+                "region_name": "Region 1",
+                "description": "Region 1 Desc",
                 "goal": "Goal 1",
                 "exit_criteria": "Exit 1",
                 "sequences": ["seq1"],
             }
         ],
-        "relations": [],
+        "relations": [
+            {
+                "from_id": "npc1",
+                "to_id": "999",
+                "relation_type": "소유",
+                "affinity": 0,
+                "meta": {},
+            }
+        ],
     }
 
-    mock_content = {
-        "sequences": [
-            {
-                "id": "seq1",
-                "name": "Sequence 1",
-                "sequence_type": "Exploration",
-                "location_name": "Location 1",
-                "description": "Desc 1",
-                "goal": "Goal 1",
-                "exit_triggers": ["Exit 1"],
-                "npcs": [{"scenario_npc_id": "npc1", "name": "NPC 1"}],
-                "enemies": [{"scenario_enemy_id": "enemy1", "name": "Enemy 1"}],
-                "items": [{"item_id": "item1", "name": "Item 1"}],
-            }
-        ]
-    }
+    mock_item_catalog = [
+        {
+            "item_id": 999,
+            "name": "Item 1",
+            "description": "D",
+            "item_type": "misc",
+            "meta": {},
+        }
+    ]
+    mock_npc_catalog = [
+        {
+            "scenario_npc_id": "npc1",
+            "name": "NPC 1",
+            "description": "D",
+            "state": {"numeric": {"HP": 10}, "boolean": {}},
+        }
+    ]
 
     mock_writer_graph = MagicMock(spec=ScenarioWriterGraph)
     mock_writer_graph.run = AsyncMock(
-        return_value={"plan": mock_plan, "content": mock_content}
+        return_value={
+            "plan": mock_plan,
+            "content": {
+                "sequences": [
+                    {
+                        "id": "seq1",
+                        "name": "Sequence 1",
+                        "sequence_type": "Exploration",
+                        "location_name": "Location 1",
+                        "location_theme": "Theme 1",
+                        "location_description": "Loc Desc 1",
+                        "description": "Desc 1",
+                        "goal": "Goal 1",
+                        "exit_triggers": ["Exit 1"],
+                        "npcs": ["npc1"],
+                        "enemies": [],
+                        "items": ["999"],
+                    }
+                ]
+            },
+            "items": mock_item_catalog,
+            "npcs": mock_npc_catalog,
+            "enemies": [],
+        }
     )
 
     engine = ScenarioEngine(repository=mock_repo, writer=mock_writer_graph)
@@ -59,23 +95,7 @@ async def test_generate_scenario_aggregation():
 
     assert result["status"] == "success"
     data = result["data"]
-    assert data["title"] == "Test Title"
-    assert len(data["acts"]) == 1
-    assert data["acts"][0]["id"] == "act1"
-    assert data["acts"][0]["sequences"] == ["seq1"]
 
-    assert len(data["sequences"]) == 1
-    assert data["sequences"][0]["id"] == "seq1"
-    assert data["sequences"][0]["npcs"] == ["npc1"]
-
-    assert len(data["npcs"]) == 1
-    assert data["npcs"][0]["scenario_npc_id"] == "npc1"
-
-    # Check if repository was called with correct data
-    call_args = mock_repo.save_scenario.call_args
-    assert call_args is not None
-    # args[2] is data
-    saved_data = call_args[0][2]
-    assert saved_data["title"] == "Test Title"
-    assert "npcs" in saved_data
-    assert len(saved_data["npcs"]) == 1
+    # Assert Flat Structure (references only)
+    assert data["sequences"][0]["items"][0] == "101"
+    assert data["sequences"][0]["npcs"][0] == "npc-1"

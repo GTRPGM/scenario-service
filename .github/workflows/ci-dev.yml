@@ -33,8 +33,8 @@ jobs:
 
       - name: Pull and tag database image
         run: |
-          docker pull ghcr.io/gtrpgm/postgres-ex:sha-ff81729
-          docker tag ghcr.io/gtrpgm/postgres-ex:sha-ff81729 postgres-ex:latest
+          docker pull ghcr.io/gtrpgm/postgres-ex:latest
+          docker tag ghcr.io/gtrpgm/postgres-ex:latest postgres-ex:latest
 
       - name: Run Unit Tests
         run: |
@@ -42,3 +42,4 @@ jobs:
           uv run pytest || [ $? -eq 5 ]
         env:
           PYTHONPATH: src
+          TEST_CONTAINER_IMAGE: ghcr.io/gtrpgm/postgres-ex:latest

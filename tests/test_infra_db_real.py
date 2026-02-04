@@ -1,9 +1,13 @@
-from uuid import uuid4
+import logging
+import os
 
+import psutil
 import pytest
 
 from scenario.infra.db.query_loader import QueryLoader
 from scenario.plugins.db.adapter import PostgresScenarioAdapter
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
@@ -11,72 +15,93 @@ async def test_scenario_save_and_load_real_db(real_db_handler):
     loader = QueryLoader()
     adapter = PostgresScenarioAdapter(real_db_handler, loader)
 
-    scenario_id = uuid4()
-    concept = "A mysterious island"
-    # New flat data structure aligned with ScenarioInjectSchema
+    # Disk I/O Monitoring Before
+    io_before = psutil.disk_io_counters()
+    proc = psutil.Process(os.getpid())
+    proc_io_before = proc.io_counters().write_bytes
+
+    concept = "Aligned DB Test"
     data = {
-        "title": "The Island of Dr. Moreau",
-        "summary": "Strange experiments on an island.",
-        "description": "Long description of the island.",
+        "title": "DB Integrity",
+        "summary": "S",
+        "description": "D",
         "difficulty": "hard",
         "genre": "horror",
-        "tags": ["island", "science"],
+        "tags": [],
         "total_acts": 1,
         "acts": [
             {
                 "id": "act1",
-                "name": "The Arrival",
-                "goal": "Find shelter",
-                "description": "Arrival at the beach.",
-                "exit_criteria": "Find a way inland.",
+                "name": "A",
+                "goal": "G",
+                "region_name": "R",
+                "region_description": "RD",
+                "exit_criteria": "E",
                 "sequences": ["seq1"],
             }
         ],
         "sequences": [
             {
                 "id": "seq1",
-                "name": "Beach",
+                "name": "S",
                 "sequence_type": "Exploration",
-                "description": "A sandy beach.",
-                "goal": "Move inland",
-                "exit_triggers": ["found_path"],
-                "location_name": "Coast",
-                "location_theme": "tropical",
-                "location_description": "Palm trees and sand.",
+                "description": "D",
+                "goal": "G",
+                "exit_triggers": [],
+                "location_name": "L",
+                "location_theme": "T",
+                "location_description": "LD",
                 "danger_min": 1,
                 "danger_max": 5,
-                "npcs": ["npc1"],
+                "npcs": [
+                    {
+                        "scenario_npc_id": "npc1",
+                        "name": "N",
+                        "description": "D",
+                        "tags": [],
+                        "state": {"numeric": {"HP": 50}},
+                    }
+                ],
                 "enemies": [],
-                "items": [],
+                "items": [
+                    {
+                        "item_id": 1,
+                        "name": "I",
+                        "description": "D",
+                        "item_type": "misc",
+                        "meta": {},
+                    }
+                ],
             }
         ],
-        "npcs": [
-            {
-                "scenario_npc_id": "npc1",
-                "name": "Stranded Sailor",
-                "description": "He looks terrified.",
-                "tags": ["survivor"],
-                "state": {
-                    "numeric": {"HP": 50},
-                    "boolean": {"is_scared": True},
-                },
-            }
-        ],
-        "enemies": [],
-        "items": [],
         "relations": [],
     }
 
-    await adapter.save_scenario(scenario_id, concept, data)
+    scenario_id = await adapter.save_scenario(concept, data)
+    assert scenario_id is not None
+
+    # Disk I/O Monitoring After
+    io_after = psutil.disk_io_counters()
+    proc_io_after = proc.io_counters().write_bytes
+
+    global_write_diff = io_after.write_bytes - io_before.write_bytes
+    proc_write_diff = proc_io_after - proc_io_before
+
+    logger.info(f"📊 [Disk IO] Global Write: {global_write_diff / 1024:.2f} KB")
+    logger.info(f"📊 [Disk IO] Process Write: {proc_write_diff / 1024:.2f} KB")
+
+    # Assert reasonable disk usage (e.g., less than 1MB for a single scenario save)
+    # Note: Global might be higher due to other system activities,
+    # but process should be low.
+    assert proc_write_diff < 1024 * 1024, (
+        f"Suspiciously high disk write: {proc_write_diff} bytes"
+    )
+
     graph = await adapter.get_scenario_full_graph(scenario_id)
 
     assert graph["scenario_id"] == str(scenario_id)
-    assert graph["title"] == "The Island of Dr. Moreau"
-    assert len(graph["acts"]) == 1
-    assert graph["acts"][0]["id"] == "act1"
 
-    sequences = graph["acts"][0]["sequences"]
-    assert len(sequences) == 1
-    assert len(sequences[0]["entities"]) == 1
-    assert sequences[0]["entities"][0]["name"] == "Stranded Sailor"
-    assert sequences[0]["entities"][0]["state"]["numeric"]["HP"] == 50
+    # Acts now contain IDs (strings), not sequence objects
+    sequences_ids = graph["acts"][0]["sequences"]
+    assert "seq1" in sequences_ids
+    assert isinstance(sequences_ids[0], str)

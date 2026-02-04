@@ -10,4 +10,5 @@ SELECT * FROM cypher('scenario_graph', $$
         tags: $tags,
         total_acts: $total_acts
     })
-$$, $1) as (v agtype);
+    RETURN s.id
+$$, $1) as (id agtype);

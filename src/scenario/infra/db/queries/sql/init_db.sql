@@ -4,6 +4,16 @@ CREATE EXTENSION IF NOT EXISTS age CASCADE;
 
 -- 2. Relational Tables
 CREATE TABLE
+    IF NOT EXISTS scenarios (
+        id UUID PRIMARY KEY,
+        title TEXT NOT NULL,
+        concept TEXT,
+        state_manager_id TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+CREATE TABLE
     IF NOT EXISTS session_states (
         session_id UUID PRIMARY KEY,
         scenario_id UUID NOT NULL,

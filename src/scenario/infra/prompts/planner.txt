@@ -27,12 +27,16 @@
       "id": str,
       "name": str,
       "region_name": str (지역명),
-      "region_description": str (지역 전체에 대한 상세 묘사),
+      "description": str (지역 전체에 대한 상세 묘사),
       "goal": str (이 지역에서의 주 목표),
       "exit_criteria": str (다음 액트로 넘어가기 위한 대규모 이동 트리거),
       "sequences": [str] (이 지역에서 방문 가능한 POI ID 리스트)
     }
   ]
 - total_summary: 시나리오에 대한 짧은 요약
-- relations: [ { "from_id": str, "to_id": str, "relation_type": str, "affinity": int (0-100), "meta": dict } ]
-  (주요 NPC나 세력 간의 초기 관계 설정)
+- item_manifest: [ { "id": str, "name": str, "concept": str } ]
+- npc_manifest: [ { "id": str, "name": str, "concept": str } ]
+- enemy_manifest: [ { "id": str, "name": str, "concept": str } ]
+  (시나리오 전체에서 사용될 모든 중요 자산의 리스트를 먼저 기획하십시오.)
+- relations: [ { "from_id": str, "to_id": str, "relation_type": "매우 우호" | "우호" | "중립" | "적대" | "매우 적대" | "소유" | "소속", "affinity": int (-100 ~ 100), "meta": dict } ]
+  (주요 NPC나 세력 간의 관계, 또는 아이템 소유 관계. ID는 모두 문자열로 처리. "소유"는 NPC가 아이템을 가질 때, "소속"은 NPC가 특정 세력(Faction)에 속할 때 사용.)

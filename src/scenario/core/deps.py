@@ -7,6 +7,7 @@ from scenario.infra.db.database import DatabaseHandler
 from scenario.infra.db.prompt_loader import PromptLoader
 from scenario.infra.db.query_loader import QueryLoader
 from scenario.plugins.agent.scenario_agents import (
+    AssetWriterAgent,
     PlannerAgent,
     ReviewerAgent,
     ValidatorAgent,
@@ -35,12 +36,13 @@ async def get_scenario_engine() -> ScenarioEngine:
 
     # Instantiate Agents (Plugins)
     planner = PlannerAgent(llm_model, prompt_loader)
+    asset_writer = AssetWriterAgent(llm_model, prompt_loader)
     writer = WriterAgent(llm_model, prompt_loader)
     reviewer = ReviewerAgent(llm_model, prompt_loader)
 
     # Create Graph (Core Engine)
     writer_graph = ScenarioWriterGraph(
-        planner, writer, reviewer, rule_engine=rule_engine
+        planner, writer, reviewer, asset_writer=asset_writer, rule_engine=rule_engine
     )
 
     return ScenarioEngine(repository, writer_graph, rule_engine=rule_engine)
