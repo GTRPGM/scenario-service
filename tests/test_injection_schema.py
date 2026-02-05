@@ -97,5 +97,5 @@ async def test_generate_scenario_aggregation():
     data = result["data"]
 
     # Assert Flat Structure (references only)
-    assert data["sequences"][0]["items"][0] == "101"
+    assert data["sequences"][0]["items"][0] == "item-101"
     assert data["sequences"][0]["npcs"][0] == "npc-1"

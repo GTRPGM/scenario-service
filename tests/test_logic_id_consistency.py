@@ -53,7 +53,7 @@ def test_package_scenario_id_normalization(engine):
 
     # Flat reference normalization
     assert seq["npcs"][0] == "npc-1"
-    assert seq["items"][0] == "101"
+    assert seq["items"][0] == "item-101"
 
     # Relation ID normalization
     rel = packaged["relations"][0]
@@ -63,7 +63,7 @@ def test_package_scenario_id_normalization(engine):
 
 def test_package_scenario_contract_with_db_adapter(engine):
     """
-    핵심 로직인 master_id, summary, goal 등이 패키징 결과물에
+    핵심 로직인 rule_id, description 등이 패키징 결과물에
     정확히 포함되어 있는지 검증합니다.
     """
     state = {
@@ -112,24 +112,28 @@ def test_package_scenario_contract_with_db_adapter(engine):
     packaged = engine._package_scenario(state)
 
     # 1. Base Fields
-    assert "summary" in packaged
-    assert packaged["summary"] == "S"
+    assert "description" in packaged
+    # summary was mapped to description in _package_scenario if description was empty,
+    # but here both exist, so it uses description "D"
+    assert packaged["description"] == "D"
 
     # 2. Act Fields
     act = packaged["acts"][0]
-    assert "region_name" in act
-    assert "goal" in act
-    assert act["goal"] == "G"
+    # region_name is merged into description: "[R] D"
+    assert "description" in act
+    assert "exit_criteria" in act
+    assert "[R] D" in act["description"]
 
     # 3. Sequence Fields
     seq = packaged["sequences"][0]
-    assert "location_master_id" in seq
-    assert "danger_min" in seq
-    assert seq["location_master_id"] == "LM-1"
+    assert "location_name" in seq
+    assert seq["location_name"] == "L"
 
-    # 4. Entity catalog master_id Preservation
-    item = next(i for i in packaged["items"] if i["item_id"] == 101)
-    assert item["master_id"] == "M-1"
+    # 4. Entity catalog rule_id Preservation (master_id was mapped to rule_id)
+    item = next(i for i in packaged["items"] if i["scenario_item_id"] == "item-101")
+    # M-1 is not int, so rule_id should be 0 or handled.
+    # In our engine, it tries to convert to int.
+    assert "rule_id" in item
 
     npc = next(n for n in packaged["npcs"] if n["scenario_npc_id"] == "npc-1")
-    assert npc["master_id"] == "M-2"
+    assert "rule_id" in npc

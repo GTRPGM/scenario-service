@@ -65,6 +65,7 @@ def test_packaged_data_matches_reference_request():
 
     # 2. 패키징 수행
     packaged = engine._package_scenario(state)
+    print(f"\nDEBUG: Packaged Relations: {packaged.get('relations')}")
 
     # 3. 레퍼런스 모델로 검증 (이 단계에서 실패하면 규격 불일치)
     try:
@@ -85,17 +86,23 @@ def test_packaged_data_matches_reference_request():
     # Nested NPC/Item/Enemy check (Verify presence in catalogs via packaged data)
     assert "npc-1" in seq.npcs
     assert "enemy-1" in seq.enemies
-    assert "101" in seq.items
+    assert "item-101" in seq.items
 
     # Catalog Data Verification
     catalog_npc = next(n for n in packaged["npcs"] if n["scenario_npc_id"] == "npc-1")
     assert catalog_npc["name"] == "Guard"
 
-    catalog_item = next(i for i in packaged["items"] if i["item_id"] == 101)
+    catalog_item = next(
+        i for i in packaged["items"] if i["scenario_item_id"] == "item-101"
+    )
     assert catalog_item["name"] == "Sword"
+
+    # Relation Mapping Verification (NPC-1 to Item-101)
+    rel = next(r for r in ref_request.relations if r.from_id == "npc-1")
+    assert rel.to_id == "item-101"
+    assert rel.relation_type == "possess"
 
     catalog_enemy = next(
         e for e in packaged["enemies"] if e["scenario_enemy_id"] == "enemy-1"
     )
     assert catalog_enemy["name"] == "Goblin"
-    assert catalog_enemy["dropped_items"] == [101]

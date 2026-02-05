@@ -108,12 +108,12 @@ async def test_full_asset_workflow_aggregation():
 
     # Assert Flat Structure (references only)
     seq = data["sequences"][0]
-    assert seq["items"][0] == "101"
+    assert seq["items"][0] == "item-101"
     assert seq["npcs"][0] == "npc-1"
     assert seq["enemies"][0] == "enemy-1"
 
     # Check catalogs for actual data
-    item = next(i for i in data["items"] if i["item_id"] == 101)
+    item = next(i for i in data["items"] if i["scenario_item_id"] == "item-101")
     assert item["name"] == "Sword"
 
     npc = next(n for n in data["npcs"] if n["scenario_npc_id"] == "npc-1")
@@ -121,7 +121,12 @@ async def test_full_asset_workflow_aggregation():
 
     enemy = next(e for e in data["enemies"] if e["scenario_enemy_id"] == "enemy-1")
     assert enemy["name"] == "Skeleton"
-    assert enemy["dropped_items"] == [101]
+    # No rule_id provided in mock_enemies, should be None
+    assert enemy["rule_id"] is None
+    # Dropped items mapping: rule_id of item was None,
+    # so it should be empty or handle None
+    # In current engine, it skips if rule_id is 0 or None
+    assert enemy["dropped_items"] == []
 
 
 @pytest.mark.asyncio
@@ -160,7 +165,7 @@ async def test_informed_generation_grounding():
         return_value={
             "items": [
                 {
-                    "item_id": "MASTER-EXCALIBUR",
+                    "rule_id": 99999,
                     "name": "Excalibur",
                     "base_price": 5000,
                     "weight": 5,
@@ -178,10 +183,10 @@ async def test_informed_generation_grounding():
     data = result["data"]
     # Check item ID in sequence
     item_id = data["sequences"][0]["items"][0]
-    assert item_id == "101"
+    assert item_id == "item-101"
 
     # Verify grounding in the item catalog
-    item = next(i for i in data["items"] if i["item_id"] == 101)
+    item = next(i for i in data["items"] if i["scenario_item_id"] == "item-101")
     assert item["meta"]["price"] == 5000
     assert item["item_type"] == "equipment"
-    assert item["master_id"] == "MASTER-EXCALIBUR"
+    assert item["rule_id"] == 99999

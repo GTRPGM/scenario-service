@@ -95,7 +95,7 @@ async def test_engine_aggregation_logic(mock_data):
 
     # Final data check
     # In flat structure, sequences[0].items is a list of ID strings
-    assert result["data"]["sequences"][0]["items"][0] == "101"
+    assert result["data"]["sequences"][0]["items"][0] == "item-101"
     assert result["scenario_id"] == str(generated_id)
 
 
