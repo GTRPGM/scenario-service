@@ -24,7 +24,7 @@ async def test_scenario_generation(concept: str):
 
             print("\n[+] 시나리오 생성 완료!")
             print("=" * 50)
-            print(f"줄거리 요약: {result['data']['summary']}")
+            print(f"시나리오 설명: {result['data'].get('description', 'N/A')}")
             print("=" * 50)
 
             print("\n[액트(Acts) 구성]")
