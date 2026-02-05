@@ -8,11 +8,12 @@ class ScenarioInjectNPC(BaseModel):
     """NPC entity definition (Catalog)"""
 
     scenario_npc_id: str
-    master_id: Optional[str] = None
+    rule_id: Optional[int] = None
     name: str
     description: str = ""
     tags: List[str] = []
     state: Dict[str, Any] = {}
+    is_departed: bool = False
 
     @field_validator("scenario_npc_id", mode="before")
     @classmethod
@@ -21,29 +22,26 @@ class ScenarioInjectNPC(BaseModel):
 
 
 class ScenarioInjectItem(BaseModel):
-    """Item entity definition - item_id is INT in catalog"""
+    """Item entity definition - item_id is now scenario_item_id (str)"""
 
-    item_id: int
-    master_id: Optional[str] = None
+    scenario_item_id: str
+    rule_id: Optional[int] = None
     name: str
     description: str = ""
     item_type: str = "misc"
     meta: Dict[str, Any] = {}
 
-    @field_validator("item_id", mode="before")
+    @field_validator("scenario_item_id", mode="before")
     @classmethod
-    def ensure_int_id(cls, v: Any) -> int:
-        if isinstance(v, str):
-            nums = re.findall(r"\d+", v)
-            return int(nums[0]) if nums else 0
-        return int(v)
+    def ensure_str_id(cls, v: Any) -> str:
+        return str(v)
 
 
 class ScenarioInjectEnemy(BaseModel):
     """Enemy entity definition (Catalog)"""
 
     scenario_enemy_id: str
-    master_id: Optional[str] = None
+    rule_id: Optional[int] = None
     name: str
     description: str = ""
     tags: List[str] = []
@@ -82,31 +80,23 @@ class ScenarioInjectRelation(BaseModel):
 
 
 class ActInject(BaseModel):
-    """Act structure"""
+    """Act structure matching state-manager ScenarioActInject"""
 
     id: str
     name: str
-    region_name: str
-    region_description: str = ""
-    goal: str
-    exit_criteria: str
+    description: Optional[str] = None
+    exit_criteria: Optional[str] = None
     sequences: List[str] = []
 
 
 class SequenceInject(BaseModel):
-    """Sequence structure - REFS ARE STRICT STRINGS"""
+    """Sequence structure matching state-manager ScenarioSequenceInject"""
 
     id: str
     name: str
-    sequence_type: str = "Exploration"
-    location_name: str
-    location_master_id: Optional[str] = None
-    location_theme: str = ""
-    location_description: str = ""
-    danger_min: int = 1
-    danger_max: int = 10
-    description: str
-    goal: str
+    location_name: Optional[str] = None
+    description: Optional[str] = None
+    goal: Optional[str] = None
     exit_triggers: List[str] = []
     npcs: List[str] = []
     enemies: List[str] = []
@@ -114,17 +104,11 @@ class SequenceInject(BaseModel):
 
 
 class ScenarioInjectSchema(BaseModel):
-    """Final structure for State Manager (Flat & Strictly Typed)"""
+    """Final structure for State Manager (Matches ScenarioInjectRequest)"""
 
     scenario_id: Optional[str] = None
-    state_manager_id: Optional[str] = None
     title: str
-    summary: str = ""
-    description: str = ""
-    difficulty: str = "normal"
-    genre: str = "fantasy"
-    tags: List[str] = []
-    total_acts: int = 1
+    description: Optional[str] = None
     acts: List[ActInject] = []
     sequences: List[SequenceInject] = []
     npcs: List[ScenarioInjectNPC] = []

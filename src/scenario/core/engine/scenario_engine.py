@@ -74,13 +74,19 @@ class ScenarioEngine:
         master_items = {a["name"]: a for a in assets.get("items", [])}
         master_locales = {a["name"]: a for a in assets.get("locales", [])}
 
+        def get_rule_id(asset_dict: Dict) -> Optional[int]:
+            rid = asset_dict.get("rule_id") or asset_dict.get("master_id")
+            if isinstance(rid, int):
+                return rid
+            if isinstance(rid, str) and rid.isdigit():
+                return int(rid)
+            return None
+
         # Ground NPCs catalog
         for npc in data.get("npcs", []):
             m_npc = master_npcs.get(npc["name"])
             if m_npc:
-                npc["master_id"] = str(
-                    m_npc.get("npc_id") or m_npc.get("master_id", "")
-                )
+                npc["rule_id"] = get_rule_id(m_npc)
                 npc["description"] = m_npc.get(
                     "description", npc.get("description", "")
                 )
@@ -89,9 +95,7 @@ class ScenarioEngine:
         for enemy in data.get("enemies", []):
             m_enemy = master_enemies.get(enemy["name"])
             if m_enemy:
-                enemy["master_id"] = str(
-                    m_enemy.get("enemy_id") or m_enemy.get("master_id", "")
-                )
+                enemy["rule_id"] = get_rule_id(m_enemy)
                 enemy["description"] = m_enemy.get(
                     "description", enemy.get("description", "")
                 )
@@ -100,9 +104,7 @@ class ScenarioEngine:
         for item in data.get("items", []):
             m_item = master_items.get(item["name"])
             if m_item:
-                item["master_id"] = str(
-                    m_item.get("item_id") or m_item.get("master_id", "")
-                )
+                item["rule_id"] = get_rule_id(m_item)
                 item["item_type"] = m_item.get("type", item.get("item_type", "misc"))
                 if "meta" not in item:
                     item["meta"] = {}
@@ -117,10 +119,7 @@ class ScenarioEngine:
         for seq in data.get("sequences", []):
             m_loc = master_locales.get(seq["location_name"])
             if m_loc:
-                seq["location_master_id"] = str(
-                    m_loc.get("locale_id") or m_loc.get("master_id", "")
-                )
-                seq["location_theme"] = m_loc.get("theme", seq.get("location_theme"))
+                seq["location_name"] = m_loc.get("name", seq.get("location_name"))
 
         return data
 
@@ -138,7 +137,6 @@ class ScenarioEngine:
         content = state.get("content", {})
 
         # 1. Canonical ID Mapping (Order-based)
-        # LLM의 불규칙한 ID를 act-1, seq-1 형식으로 강제 재부여
         def clean_id(val: Any) -> str:
             if not val:
                 return ""
@@ -149,7 +147,7 @@ class ScenarioEngine:
                     or val.get("scenario_enemy_id")
                     or val.get("item_id")
                 )
-            return (
+            s = (
                 str(val)
                 .strip()
                 .lower()
@@ -157,9 +155,12 @@ class ScenarioEngine:
                 .replace("-", "")
                 .replace(" ", "")
             )
+            # Remove common prefixes to unify "item-101" and "101"
+            for prefix in ["item", "npc", "enemy", "act", "seq"]:
+                if s.startswith(prefix):
+                    s = s[len(prefix) :]
+            return s
 
-        # Create Maps
-        # act_map is unused in packaging logic (acts are self-contained)
         seq_map = {
             clean_id(s.get("id")): f"seq-{i + 1}"
             for i, s in enumerate(content.get("sequences", []) or [])
@@ -173,26 +174,28 @@ class ScenarioEngine:
             for i, e in enumerate(state.get("enemies", []) or [])
         }
 
-        # Item mapping (IDs are INTs, but we'll map them carefully)
+        # Item mapping: Internal int ID -> Canonical "item-101" string
         item_map = {}
         for i, item in enumerate(state.get("items", []) or []):
             original_id = str(item.get("item_id"))
-            item_map[clean_id(original_id)] = (
-                i + 101
-            )  # Canonical item IDs start from 101
+            item_map[clean_id(original_id)] = f"item-{i + 101}"
 
-        def to_item_int(val: Any) -> int:
-            cid = clean_id(val)
-            return item_map.get(cid, 0)
+        def get_item_rule_id(item_data: Dict) -> Optional[int]:
+            val = item_data.get("rule_id") or item_data.get("master_id")
+            if isinstance(val, int):
+                return val
+            if isinstance(val, str) and val.isdigit():
+                return int(val)
+            return None
 
         # 2. Process Catalogs with New IDs
         packaged_items = []
         for i, item in enumerate(state.get("items", []) or []):
-            new_id = i + 101
+            new_id = f"item-{i + 101}"
             packaged_items.append(
                 {
-                    "item_id": new_id,
-                    "master_id": item.get("master_id"),
+                    "scenario_item_id": new_id,
+                    "rule_id": get_item_rule_id(item),
                     "name": item.get("name", "Untitled Item"),
                     "description": item.get("description", ""),
                     "item_type": item.get("item_type", "misc"),
@@ -206,28 +209,39 @@ class ScenarioEngine:
             packaged_npcs.append(
                 {
                     "scenario_npc_id": new_id,
-                    "master_id": npc.get("master_id"),
+                    "rule_id": get_item_rule_id(npc),
                     "name": npc.get("name", "Untitled NPC"),
                     "description": npc.get("description", ""),
                     "tags": npc.get("tags", []),
                     "state": npc.get("state", {}),
+                    "is_departed": False,
                 }
             )
 
         packaged_enemies = []
         for i, enemy in enumerate(state.get("enemies", []) or []):
             new_id = f"enemy-{i + 1}"
+            final_drops = []
+            raw_drops = enemy.get("dropped_items", []) or []
+            for d in raw_drops:
+                d_clean = clean_id(d)
+                found_rule_id = 0
+                for it in state.get("items", []) or []:
+                    if clean_id(it.get("item_id")) == d_clean:
+                        found_rule_id = get_item_rule_id(it)
+                        break
+                if found_rule_id:
+                    final_drops.append(found_rule_id)
+
             packaged_enemies.append(
                 {
                     "scenario_enemy_id": new_id,
-                    "master_id": enemy.get("master_id"),
+                    "rule_id": get_item_rule_id(enemy),
                     "name": enemy.get("name", "Untitled Enemy"),
                     "description": enemy.get("description", ""),
                     "tags": enemy.get("tags", []),
                     "state": enemy.get("state", {}),
-                    "dropped_items": [
-                        to_item_int(d) for d in enemy.get("dropped_items", []) or []
-                    ],
+                    "dropped_items": final_drops,
                 }
             )
 
@@ -239,13 +253,7 @@ class ScenarioEngine:
                 {
                     "id": new_id,
                     "name": seq.get("name", "Untitled Sequence"),
-                    "sequence_type": seq.get("sequence_type", "Exploration"),
                     "location_name": seq.get("location_name") or "Unknown Location",
-                    "location_master_id": seq.get("location_master_id"),
-                    "location_theme": seq.get("location_theme", ""),
-                    "location_description": seq.get("location_description", ""),
-                    "danger_min": seq.get("danger_min", 1),
-                    "danger_max": seq.get("danger_max", 10),
                     "description": seq.get("description", ""),
                     "goal": seq.get("goal", ""),
                     "exit_triggers": seq.get("exit_triggers") or [],
@@ -259,7 +267,11 @@ class ScenarioEngine:
                         for e in seq.get("enemies", []) or []
                         if clean_id(e) in enemy_map
                     ],
-                    "items": [str(to_item_int(i)) for i in seq.get("items", []) or []],
+                    "items": [
+                        item_map.get(clean_id(it))
+                        for it in seq.get("items", []) or []
+                        if clean_id(it) in item_map
+                    ],
                 }
             )
 
@@ -267,14 +279,15 @@ class ScenarioEngine:
         packaged_acts = []
         for i, act in enumerate(plan.get("acts", []) or []):
             new_id = f"act-{i + 1}"
+            region = act.get("region_name", "")
+            desc = act.get("description") or act.get("region_description", "")
+            final_desc = f"[{region}] {desc}" if region else desc
+
             packaged_acts.append(
                 {
                     "id": new_id,
                     "name": act.get("name", "Untitled Act"),
-                    "region_name": act.get("region_name") or "Unknown Region",
-                    "region_description": act.get("description")
-                    or act.get("region_description", ""),
-                    "goal": act.get("goal", ""),
+                    "description": final_desc,
                     "exit_criteria": act.get("exit_criteria", ""),
                     "sequences": [
                         seq_map.get(clean_id(s))
@@ -288,9 +301,9 @@ class ScenarioEngine:
         packaged_relations = []
         for rel in plan.get("relations", []) or []:
             f_cid, t_cid = clean_id(rel.get("from_id")), clean_id(rel.get("to_id"))
-            # Target can be NPC or Enemy
-            f_new = npc_map.get(f_cid) or enemy_map.get(f_cid)
-            t_new = npc_map.get(t_cid) or enemy_map.get(t_cid)
+            # Source or Target can be NPC, Enemy, or Item
+            f_new = npc_map.get(f_cid) or enemy_map.get(f_cid) or item_map.get(f_cid)
+            t_new = npc_map.get(t_cid) or enemy_map.get(t_cid) or item_map.get(t_cid)
 
             if f_new and t_new:
                 packaged_relations.append(
@@ -305,12 +318,7 @@ class ScenarioEngine:
 
         return {
             "title": plan.get("title", "Untitled Scenario"),
-            "summary": plan.get("total_summary", ""),
-            "description": plan.get("description", ""),
-            "difficulty": plan.get("difficulty", "normal"),
-            "genre": plan.get("genre", "fantasy"),
-            "tags": plan.get("tags", []),
-            "total_acts": len(packaged_acts),
+            "description": plan.get("description") or plan.get("total_summary", ""),
             "acts": packaged_acts,
             "sequences": packaged_sequences,
             "npcs": packaged_npcs,

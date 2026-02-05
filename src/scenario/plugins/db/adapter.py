@@ -114,7 +114,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
         ent_cypher = self.loader.load_cypher("create_entity")
         npc_map = {str(n["scenario_npc_id"]): n for n in data.get("npcs", [])}
         enemy_map = {str(e["scenario_enemy_id"]): e for e in data.get("enemies", [])}
-        item_map = {str(i["item_id"]): i for i in data.get("items", [])}
+        item_map = {str(i["scenario_item_id"]): i for i in data.get("items", [])}
 
         ent_count = 0
         for seq in data.get("sequences", []):
@@ -129,7 +129,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
                                 "scenario_id": scenario_id_str,
                                 "seq_id": seq_id,
                                 "ent_id": n["scenario_npc_id"],
-                                "master_id": n.get("master_id"),
+                                "master_id": n.get("rule_id"),
                                 "name": n["name"],
                                 "entity_category": "NPC",
                                 "description": n.get("description", ""),
@@ -151,7 +151,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
                                 "scenario_id": scenario_id_str,
                                 "seq_id": seq_id,
                                 "ent_id": e["scenario_enemy_id"],
-                                "master_id": e.get("master_id"),
+                                "master_id": e.get("rule_id"),
                                 "name": e["name"],
                                 "entity_category": "ENEMY",
                                 "description": e.get("description", ""),
@@ -174,8 +174,8 @@ class PostgresScenarioAdapter(ScenarioRepository):
                             {
                                 "scenario_id": scenario_id_str,
                                 "seq_id": seq_id,
-                                "ent_id": str(i["item_id"]),
-                                "master_id": i.get("master_id"),
+                                "ent_id": str(i["scenario_item_id"]),
+                                "master_id": i.get("rule_id"),
                                 "name": i["name"],
                                 "entity_category": "ITEM",
                                 "description": i.get("description", ""),
@@ -388,7 +388,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
             ent_common = {
                 "name": e.get("name", ""),
                 "description": e.get("description", ""),
-                "master_id": e.get("master_id"),
+                "rule_id": e.get("master_id"),
                 "tags": e.get("tags", []),
                 "state": e.get("state", {}),
                 "meta": e.get("meta", {}),
@@ -408,11 +408,10 @@ class PostgresScenarioAdapter(ScenarioRepository):
                 if s_id in seq_map and e_id not in seq_map[s_id]["enemies"]:
                     seq_map[s_id]["enemies"].append(e_id)
             elif cat == "ITEM":
-                item_num = self._extract_int_id(e_id)
-                ent_common["item_id"] = item_num
-                item_cat[str(item_num)] = ent_common
-                if s_id in seq_map and str(item_num) not in seq_map[s_id]["items"]:
-                    seq_map[s_id]["items"].append(str(item_num))
+                ent_common["scenario_item_id"] = e_id
+                item_cat[e_id] = ent_common
+                if s_id in seq_map and e_id not in seq_map[s_id]["items"]:
+                    seq_map[s_id]["items"].append(e_id)
 
         scenario["npcs"], scenario["enemies"], scenario["items"] = (
             list(npc_cat.values()),
@@ -436,10 +435,6 @@ class PostgresScenarioAdapter(ScenarioRepository):
                 self._clean_agtype(r["from_id"]),
                 self._clean_agtype(r["to_id"]),
             )
-            if f_id in item_cat:
-                f_id = str(self._extract_int_id(f_id))
-            if t_id in item_cat:
-                t_id = str(self._extract_int_id(t_id))
             scenario["relations"].append(
                 {
                     "from_id": f_id,
