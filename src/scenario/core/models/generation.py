@@ -218,3 +218,8 @@ class ValidationOutput(BaseModel):
     next_seq_id: Optional[str] = None
 
     suggested_narration: Optional[str] = None
+
+    # Added to match GM ScenarioSuggestion and support non-combat outcomes
+    correction_diffs: List[Dict[str, Any]] = []
+
+    narrative_slot: Optional[str] = None

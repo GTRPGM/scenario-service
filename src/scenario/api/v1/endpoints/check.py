@@ -74,6 +74,7 @@ async def validate_by_session(
             seq_id=seq_id,
             user_input=request.user_input,
             validator_agent=validator,
+            world_state=session_state,
         )
 
         # Add session_id to the response

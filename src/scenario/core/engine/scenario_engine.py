@@ -363,6 +363,7 @@ class ScenarioEngine:
         seq_id: str,
         user_input: str,
         validator_agent: Any,
+        world_state: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         def normalize(val: str) -> str:
             # Normalize IDs: lowercase, strip, and convert underscores to hyphens
@@ -388,13 +389,25 @@ class ScenarioEngine:
             raise ValueError(f"Sequence {norm_seq_id} not found in act {norm_act_id}")
 
         input_data = {
+            "act_id": norm_act_id,
             "act_name": context["act"]["name"],
             "act_goal": context["act"]["goal"],
             "act_exit_criteria": context["act"]["exit_criteria"],
+            "current_sequence_id": norm_seq_id,
             "current_sequence_name": current_seq.get("name", "Unknown"),
             "current_sequence_description": current_seq.get("description", ""),
             "current_sequence_goal": current_seq.get("goal", ""),
             "exit_triggers": current_seq.get("exit_triggers") or [],
+            "available_sequences": [
+                {
+                    "id": s["id"],
+                    "name": s["name"],
+                    "description": s.get("description", ""),
+                }
+                for s in sequences
+                if normalize(s["id"]) != norm_seq_id
+            ],
+            "world_state": world_state or {},
             "user_input": user_input,
         }
 
