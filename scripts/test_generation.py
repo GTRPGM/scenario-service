@@ -5,7 +5,7 @@ import sys
 
 import httpx
 
-SCENARIO_SERVICE_URL = "http://localhost:8030"  # 시나리오 서비스 주소
+SCENARIO_SERVICE_URL = "http://localhost:8040"  # 시나리오 서비스 주소
 
 
 async def test_scenario_generation(concept: str):

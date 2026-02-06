@@ -2,6 +2,7 @@ import logging
 from typing import Annotated, Dict, List
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class TransitionRequest(BaseModel):
     session_id: str
-    next_act_id: str
+    next_act_id: str | None = None
     next_seq_id: str
 
 
@@ -48,5 +49,17 @@ async def transition_session(
     engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
 ):
     """Transition a session to a new Act/Sequence."""
-    # TODO: Implement actual transition logic in Engine
-    return {"status": "success"}
+    try:
+        return await engine.transition_session(
+            session_id=request.session_id,
+            next_act_id=request.next_act_id,
+            next_seq_id=request.next_seq_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except httpx.HTTPStatusError as e:
+        detail = f"State transition failed: {e.response.status_code}"
+        raise HTTPException(status_code=502, detail=detail) from e
+    except Exception as e:
+        detail = f"Transition failed: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail) from e
