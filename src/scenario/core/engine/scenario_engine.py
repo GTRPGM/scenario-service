@@ -79,11 +79,26 @@ class ScenarioEngine:
             mid = asset_dict.get("master_id") or asset_dict.get("rule_id")
             return str(mid) if mid is not None else None
 
+        def get_rule_id(asset_dict: Dict) -> Optional[int]:
+            raw = asset_dict.get("rule_id") or asset_dict.get("master_id")
+            if raw is None:
+                return None
+            if isinstance(raw, int):
+                return raw
+            text = str(raw).strip()
+            if text.isdigit():
+                return int(text)
+            digits = "".join(ch for ch in text if ch.isdigit())
+            return int(digits) if digits else None
+
         # Ground NPCs catalog
         for npc in data.get("npcs", []):
             m_npc = master_npcs.get(npc["name"])
             if m_npc:
                 npc["master_id"] = get_master_id(m_npc)
+                rid = get_rule_id(m_npc)
+                if rid is not None:
+                    npc["rule_id"] = rid
                 npc["description"] = m_npc.get(
                     "description", npc.get("description", "")
                 )
@@ -93,6 +108,9 @@ class ScenarioEngine:
             m_enemy = master_enemies.get(enemy["name"])
             if m_enemy:
                 enemy["master_id"] = get_master_id(m_enemy)
+                rid = get_rule_id(m_enemy)
+                if rid is not None:
+                    enemy["rule_id"] = rid
                 enemy["description"] = m_enemy.get(
                     "description", enemy.get("description", "")
                 )
@@ -102,6 +120,9 @@ class ScenarioEngine:
             m_item = master_items.get(item["name"])
             if m_item:
                 item["master_id"] = get_master_id(m_item)
+                rid = get_rule_id(m_item)
+                if rid is not None:
+                    item["rule_id"] = rid
                 item["item_type"] = m_item.get("type", item.get("item_type", "misc"))
                 if "meta" not in item:
                     item["meta"] = {}
