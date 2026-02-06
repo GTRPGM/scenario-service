@@ -105,7 +105,7 @@ def test_engine_id_extraction_logic(engine: ScenarioEngine):
     assert packaged["acts"][0]["id"] == "act-1"
     assert packaged["sequences"][0]["id"] == "seq-1"
     assert packaged["sequences"][0]["npcs"][0] == "npc-1"
-    assert packaged["sequences"][0]["items"][0] == "item-101"
+    assert packaged["sequences"][0]["items"][0] == "101"
 
     # Relations: n1 -> n2 should map to npc-1 -> npc-2
     assert packaged["relations"][0]["from_id"] == "npc-1"
