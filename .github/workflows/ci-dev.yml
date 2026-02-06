@@ -24,9 +24,22 @@ jobs:
       - name: Run pre-commit
         run: uvx pre-commit run --all-files
 
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and tag database image
+        run: |
+          docker pull ghcr.io/gtrpgm/postgres-ex:latest
+          docker tag ghcr.io/gtrpgm/postgres-ex:latest postgres-ex:latest
+
       - name: Run Unit Tests
         run: |
           uv sync --dev --frozen
           uv run pytest || [ $? -eq 5 ]
         env:
           PYTHONPATH: src
+          TEST_CONTAINER_IMAGE: ghcr.io/gtrpgm/postgres-ex:latest

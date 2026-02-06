@@ -1,0 +1,37 @@
+services:
+  scenario-service:
+    build: .
+    container_name: scenario-service
+    restart: unless-stopped
+
+    ports:
+      - "0.0.0.0:${PORT:-8040}:8040"
+
+    environment:
+      PORT: ${PORT:-8040}
+
+      # Database Settings
+      DB_USER: "${DB_USER}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+      DB_HOST: "${DB_HOST}"
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME}"
+
+      # External Service URLs
+      STATE_SERVICE_URL: "${STATE_SERVICE_URL}"
+      RULE_SERVICE_URL: "${RULE_SERVICE_URL}"
+      LLM_GATEWAY_URL: "${LLM_GATEWAY_URL}"
+
+      # LLM Settings
+      LLM_MODEL_NAME: "${LLM_MODEL_NAME:-gemini-2.5-flash-lite}"
+
+      # Logic Settings
+      SCENARIO_GRAPH_NAME: "${SCENARIO_GRAPH_NAME:-scenario_graph}"
+
+    networks:
+      - platform-net
+
+networks:
+  platform-net:
+    name: platform-net
+    external: true

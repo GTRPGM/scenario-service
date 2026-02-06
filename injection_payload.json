@@ -1,0 +1,145 @@
+{
+  "scenario_id": "3d602039-e49e-44ea-9db3-314ab4deb634",
+  "title": "잊혀진 종착역: 그림자 속 유물",
+  "description": "",
+  "acts": [
+    {
+      "id": "act-1",
+      "name": "",
+      "description": null,
+      "exit_criteria": "",
+      "sequences": [
+        "seq-1",
+        "seq-2",
+        "seq-3"
+      ]
+    },
+    {
+      "id": "act-2",
+      "name": "",
+      "description": null,
+      "exit_criteria": "",
+      "sequences": [
+        "seq-4",
+        "seq-5",
+        "seq-6"
+      ]
+    },
+    {
+      "id": "act-3",
+      "name": "",
+      "description": null,
+      "exit_criteria": "",
+      "sequences": [
+        "seq-7",
+        "seq-8",
+        "seq-9"
+      ]
+    }
+  ],
+  "sequences": [
+    {
+      "id": "seq-1",
+      "name": "",
+      "location_name": "Unknown",
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq-2",
+      "name": "",
+      "location_name": "Unknown",
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq-3",
+      "name": "",
+      "location_name": "Unknown",
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq-4",
+      "name": "",
+      "location_name": "Unknown",
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq-5",
+      "name": "",
+      "location_name": "Unknown",
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq-6",
+      "name": "",
+      "location_name": "Unknown",
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq-7",
+      "name": "",
+      "location_name": "Unknown",
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq-8",
+      "name": "",
+      "location_name": "Unknown",
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    },
+    {
+      "id": "seq-9",
+      "name": "",
+      "location_name": "Unknown",
+      "description": "",
+      "goal": "",
+      "exit_triggers": [],
+      "npcs": [],
+      "enemies": [],
+      "items": []
+    }
+  ],
+  "npcs": [],
+  "enemies": [],
+  "items": [],
+  "relations": []
+}
