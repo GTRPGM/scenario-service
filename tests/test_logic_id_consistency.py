@@ -13,6 +13,9 @@ def engine():
 
 
 def test_package_scenario_id_normalization(engine):
+    """
+    State의 자유로운 ID들을 규격화된 ID(act-1, seq-1, npc-1 등)로 변환하는지 검증합니다.
+    """
     state = {
         "plan": {
             "title": "Test",
@@ -63,7 +66,7 @@ def test_package_scenario_id_normalization(engine):
 
 def test_package_scenario_contract_with_db_adapter(engine):
     """
-    핵심 로직인 master_id, summary, goal 등이 패키징 결과물에
+    핵심 로직인 rule_id, summary, goal 등이 패키징 결과물에
     정확히 포함되어 있는지 검증합니다.
     """
     state = {
@@ -128,8 +131,8 @@ def test_package_scenario_contract_with_db_adapter(engine):
     assert seq["location_master_id"] == "LM-1"
 
     # 4. Entity catalog master_id Preservation
-    item = next(i for i in packaged["items"] if i["item_id"] == 101)
-    assert item["master_id"] == "M-1"
+    item = next(i for i in packaged["items"] if i["scenario_item_id"] == "101")
+    assert item["rule_id"] == 1
 
     npc = next(n for n in packaged["npcs"] if n["scenario_npc_id"] == "npc-1")
-    assert npc["master_id"] == "M-2"
+    assert npc["rule_id"] == 2

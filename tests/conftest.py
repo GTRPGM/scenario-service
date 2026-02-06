@@ -26,7 +26,8 @@ def postgres_container():
     import os
 
     image = os.getenv("TEST_CONTAINER_IMAGE", "postgres-ex:latest")
-    container = PostgresContainer(image, driver=None)
+    dbname = os.getenv("TEST_CONTAINER_DB", "gtrpgm")
+    container = PostgresContainer(image, driver=None, dbname=dbname)
     with container:
         host = container.get_container_host_ip()
         port = container.get_exposed_port(5432)

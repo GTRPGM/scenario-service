@@ -53,25 +53,27 @@ async def test_scenario_save_and_load_real_db(real_db_handler):
                 "location_description": "LD",
                 "danger_min": 1,
                 "danger_max": 5,
-                "npcs": [
-                    {
-                        "scenario_npc_id": "npc1",
-                        "name": "N",
-                        "description": "D",
-                        "tags": [],
-                        "state": {"numeric": {"HP": 50}},
-                    }
-                ],
+                "npcs": ["npc1"],
                 "enemies": [],
-                "items": [
-                    {
-                        "item_id": 1,
-                        "name": "I",
-                        "description": "D",
-                        "item_type": "misc",
-                        "meta": {},
-                    }
-                ],
+                "items": ["1"],
+            }
+        ],
+        "npcs": [
+            {
+                "scenario_npc_id": "npc1",
+                "name": "N",
+                "description": "D",
+                "tags": [],
+                "state": {"numeric": {"HP": 50}},
+            }
+        ],
+        "items": [
+            {
+                "scenario_item_id": "1",
+                "name": "I",
+                "description": "D",
+                "item_type": "misc",
+                "meta": {},
             }
         ],
         "relations": [],

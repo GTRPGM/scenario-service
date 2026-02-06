@@ -107,6 +107,7 @@ async def test_db_adapter_query_calls(mock_data):
 
     mock_loader = MagicMock()
     mock_loader.load_cypher.side_effect = lambda name: f"QUERY_{name}"
+    mock_loader.load_sql.side_effect = lambda name: f"QUERY_SQL_{name}"
 
     adapter = PostgresScenarioAdapter(db=mock_db, loader=mock_loader)
 
@@ -139,14 +140,14 @@ async def test_db_adapter_query_calls(mock_data):
                 "location_name": "L",
                 "npcs": ["npc-1"],
                 "enemies": ["enemy-1"],
-                "items": ["1"],
+                "items": ["101"],
             }
         ],
         "npcs": [{"scenario_npc_id": "npc-1", "name": "N"}],
         "enemies": [
-            {"scenario_enemy_id": "enemy-1", "name": "E", "dropped_items": [1]}
+            {"scenario_enemy_id": "enemy-1", "name": "E", "dropped_items": ["101"]}
         ],
-        "items": [{"item_id": 1, "name": "I"}],
+        "items": [{"item_id": 101, "name": "I"}],
         "relations": [{"from_id": "npc-1", "to_id": "enemy-1"}],
     }
 

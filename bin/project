@@ -14,10 +14,10 @@ case "$COMMAND" in
         uv run uvicorn scenario.main:app --host 0.0.0.0 --port 8040 --reload
         ;;
     up)
-        docker compose -f docker-compose.dev.yml up --build -d
+        docker compose -f docker-compose.local.yml up --build -d
         ;;
     down)
-        docker compose -f docker-compose.dev.yml down
+        docker compose -f docker-compose.local.yml down
         ;;
     inspect)
         docker logs scenario-service

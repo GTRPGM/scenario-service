@@ -113,7 +113,7 @@ async def test_full_asset_workflow_aggregation():
     assert seq["enemies"][0] == "enemy-1"
 
     # Check catalogs for actual data
-    item = next(i for i in data["items"] if i["item_id"] == 101)
+    item = next(i for i in data["items"] if i["scenario_item_id"] == "101")
     assert item["name"] == "Sword"
 
     npc = next(n for n in data["npcs"] if n["scenario_npc_id"] == "npc-1")
@@ -121,7 +121,10 @@ async def test_full_asset_workflow_aggregation():
 
     enemy = next(e for e in data["enemies"] if e["scenario_enemy_id"] == "enemy-1")
     assert enemy["name"] == "Skeleton"
-    assert enemy["dropped_items"] == [101]
+    # No rule_id/master_id provided in mock_enemies, normalized to 0
+    assert enemy["rule_id"] == 0
+    # Dropped items mapping: item-101 exists in catalog, so it should be mapped
+    assert enemy["dropped_items"] == ["101"]
 
 
 @pytest.mark.asyncio
@@ -160,7 +163,7 @@ async def test_informed_generation_grounding():
         return_value={
             "items": [
                 {
-                    "item_id": "MASTER-EXCALIBUR",
+                    "master_id": "99999",
                     "name": "Excalibur",
                     "base_price": 5000,
                     "weight": 5,
@@ -181,7 +184,7 @@ async def test_informed_generation_grounding():
     assert item_id == "101"
 
     # Verify grounding in the item catalog
-    item = next(i for i in data["items"] if i["item_id"] == 101)
+    item = next(i for i in data["items"] if i["scenario_item_id"] == "101")
     assert item["meta"]["price"] == 5000
     assert item["item_type"] == "equipment"
-    assert item["master_id"] == "MASTER-EXCALIBUR"
+    assert item["rule_id"] == 99999

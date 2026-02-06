@@ -23,7 +23,7 @@ services:
       LLM_GATEWAY_URL: "${LLM_GATEWAY_URL}"
 
       # LLM Settings
-      LLM_MODEL_NAME: "${LLM_MODEL_NAME:-gemini-2.5-flash-lite}"
+      LLM_MODEL_NAME: "${LLM_MODEL_NAME:-gemini-2.0-flash-lite}"
 
       # Logic Settings
       SCENARIO_GRAPH_NAME: "${SCENARIO_GRAPH_NAME:-scenario_graph}"

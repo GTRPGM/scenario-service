@@ -99,3 +99,66 @@ async def test_generate_scenario_aggregation():
     # Assert Flat Structure (references only)
     assert data["sequences"][0]["items"][0] == "101"
     assert data["sequences"][0]["npcs"][0] == "npc-1"
+
+
+def test_to_state_payload_alignment():
+    engine = ScenarioEngine(repository=MagicMock(), writer=MagicMock())
+
+    internal_data = {
+        "title": "Inject Contract",
+        "description": "State aligned payload",
+        "acts": [
+            {
+                "id": "act-1",
+                "name": "Act 1",
+                "region_description": "Region desc",
+                "exit_criteria": "Leave",
+                "sequences": ["seq-1"],
+            }
+        ],
+        "sequences": [
+            {
+                "id": "seq-1",
+                "name": "Start",
+                "location_name": "Village",
+                "description": "Desc",
+                "goal": "Goal",
+                "exit_triggers": ["done"],
+                "npcs": ["npc-1"],
+                "enemies": ["enemy-1"],
+                "items": ["101"],
+            }
+        ],
+        "npcs": [
+            {
+                "scenario_npc_id": "npc-1",
+                "master_id": "1001",
+                "name": "Guide",
+            }
+        ],
+        "enemies": [
+            {
+                "scenario_enemy_id": "enemy-1",
+                "master_id": "2001",
+                "name": "Wolf",
+                "dropped_items": ["101"],
+            }
+        ],
+        "items": [
+            {
+                "item_id": 101,
+                "master_id": "3001",
+                "name": "Rope",
+            }
+        ],
+        "relations": [{"from_id": "npc-1", "to_id": "enemy-1"}],
+    }
+
+    payload = engine._to_state_injection_payload(internal_data)
+
+    assert payload["items"][0]["scenario_item_id"] == "101"
+    assert payload["items"][0]["rule_id"] == 3001
+    assert payload["npcs"][0]["rule_id"] == 1001
+    assert payload["enemies"][0]["rule_id"] == 2001
+    assert payload["enemies"][0]["dropped_items"] == [3001]
+    assert payload["sequences"][0]["items"] == ["101"]

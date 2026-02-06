@@ -1,74 +1,132 @@
-import re
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ScenarioInjectNPC(BaseModel):
     """NPC entity definition (Catalog)"""
 
     scenario_npc_id: str
-    master_id: Optional[str] = None
+    rule_id: int = 0
     name: str
     description: str = ""
-    tags: List[str] = []
-    state: Dict[str, Any] = {}
+    tags: List[str] = Field(default_factory=list)
+    state: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     @field_validator("scenario_npc_id", mode="before")
     @classmethod
     def ensure_str_id(cls, v: Any) -> str:
         return str(v)
 
+    @field_validator("rule_id", mode="before")
+    @classmethod
+    def coerce_rule_id(cls, v: Any) -> int:
+        if isinstance(v, int):
+            return v
+        if v is None:
+            return 0
+        text = str(v).strip()
+        if text == "":
+            return 0
+        if text.isdigit():
+            return int(text)
+        digits = "".join(ch for ch in text if ch.isdigit())
+        return int(digits) if digits else 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def alias_legacy_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "rule_id" not in data and data.get("master_id") is not None:
+                data["rule_id"] = data.get("master_id")
+        return data
+
 
 class ScenarioInjectItem(BaseModel):
-    """Item entity definition - item_id is INT in catalog"""
+    """Item entity definition"""
 
-    item_id: int
-    master_id: Optional[str] = None
+    scenario_item_id: str
+    rule_id: int = 0
     name: str
     description: str = ""
     item_type: str = "misc"
-    meta: Dict[str, Any] = {}
+    meta: Dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("item_id", mode="before")
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("scenario_item_id", mode="before")
     @classmethod
-    def ensure_int_id(cls, v: Any) -> int:
-        if isinstance(v, str):
-            nums = re.findall(r"\d+", v)
-            return int(nums[0]) if nums else 0
-        return int(v)
+    def ensure_item_id_str(cls, v: Any) -> str:
+        return str(v)
+
+    @field_validator("rule_id", mode="before")
+    @classmethod
+    def coerce_rule_id(cls, v: Any) -> int:
+        if isinstance(v, int):
+            return v
+        if v is None:
+            return 0
+        text = str(v).strip()
+        if text == "":
+            return 0
+        if text.isdigit():
+            return int(text)
+        digits = "".join(ch for ch in text if ch.isdigit())
+        return int(digits) if digits else 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def alias_legacy_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "scenario_item_id" not in data and data.get("item_id") is not None:
+                data["scenario_item_id"] = data.get("item_id")
+            if "rule_id" not in data and data.get("master_id") is not None:
+                data["rule_id"] = data.get("master_id")
+        return data
 
 
 class ScenarioInjectEnemy(BaseModel):
     """Enemy entity definition (Catalog)"""
 
     scenario_enemy_id: str
-    master_id: Optional[str] = None
+    rule_id: int = 0
     name: str
     description: str = ""
-    tags: List[str] = []
-    state: Dict[str, Any] = {}
-    dropped_items: List[int] = []
+    tags: List[str] = Field(default_factory=list)
+    state: Dict[str, Any] = Field(default_factory=dict)
+    dropped_items: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     @field_validator("scenario_enemy_id", mode="before")
     @classmethod
     def ensure_str_id(cls, v: Any) -> str:
         return str(v)
 
-    @field_validator("dropped_items", mode="before")
+    @field_validator("rule_id", mode="before")
     @classmethod
-    def ensure_list_int(cls, v: Any) -> List[int]:
-        if isinstance(v, list):
-            res = []
-            for i in v:
-                if isinstance(i, str):
-                    nums = re.findall(r"\d+", i)
-                    if nums:
-                        res.append(int(nums[0]))
-                else:
-                    res.append(int(i))
-            return res
-        return []
+    def coerce_rule_id(cls, v: Any) -> int:
+        if isinstance(v, int):
+            return v
+        if v is None:
+            return 0
+        text = str(v).strip()
+        if text == "":
+            return 0
+        if text.isdigit():
+            return int(text)
+        digits = "".join(ch for ch in text if ch.isdigit())
+        return int(digits) if digits else 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def alias_legacy_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "rule_id" not in data and data.get("master_id") is not None:
+                data["rule_id"] = data.get("master_id")
+        return data
 
 
 class ScenarioInjectRelation(BaseModel):
@@ -78,23 +136,24 @@ class ScenarioInjectRelation(BaseModel):
     to_id: str
     relation_type: str = "neutral"
     affinity: int = 50
-    meta: Dict[str, Any] = {}
+    meta: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ActInject(BaseModel):
-    """Act structure"""
+    """Act structure matching state-manager ScenarioActInject"""
 
     id: str
     name: str
     region_name: str
     region_description: str = ""
+    description: Optional[str] = None
     goal: str
     exit_criteria: str
-    sequences: List[str] = []
+    sequences: List[str] = Field(default_factory=list)
 
 
 class SequenceInject(BaseModel):
-    """Sequence structure - REFS ARE STRICT STRINGS"""
+    """Sequence structure matching state-manager ScenarioSequenceInject"""
 
     id: str
     name: str
@@ -107,30 +166,29 @@ class SequenceInject(BaseModel):
     danger_max: int = 10
     description: str
     goal: str
-    exit_triggers: List[str] = []
-    npcs: List[str] = []
-    enemies: List[str] = []
-    items: List[str] = []
+    exit_triggers: List[str] = Field(default_factory=list)
+    npcs: List[str] = Field(default_factory=list)
+    enemies: List[str] = Field(default_factory=list)
+    items: List[str] = Field(default_factory=list)
 
 
 class ScenarioInjectSchema(BaseModel):
-    """Final structure for State Manager (Flat & Strictly Typed)"""
+    """Final structure for State Manager (Matches ScenarioInjectRequest)"""
 
     scenario_id: Optional[str] = None
-    state_manager_id: Optional[str] = None
     title: str
     summary: str = ""
-    description: str = ""
+    description: Optional[str] = None
     difficulty: str = "normal"
     genre: str = "fantasy"
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
     total_acts: int = 1
-    acts: List[ActInject] = []
-    sequences: List[SequenceInject] = []
-    npcs: List[ScenarioInjectNPC] = []
-    enemies: List[ScenarioInjectEnemy] = []
-    items: List[ScenarioInjectItem] = []
-    relations: List[ScenarioInjectRelation] = []
+    acts: List[ActInject] = Field(default_factory=list)
+    sequences: List[SequenceInject] = Field(default_factory=list)
+    npcs: List[ScenarioInjectNPC] = Field(default_factory=list)
+    enemies: List[ScenarioInjectEnemy] = Field(default_factory=list)
+    items: List[ScenarioInjectItem] = Field(default_factory=list)
+    relations: List[ScenarioInjectRelation] = Field(default_factory=list)
 
 
 # --- Agent Generation Models (Restored with clear structure) ---
@@ -149,7 +207,38 @@ class ActPlan(BaseModel):
 class EntityPlan(BaseModel):
     id: str
     name: str
-    concept: str
+    concept: str = ""
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def extract_id(cls, v: Any, info: Any) -> str:
+        if isinstance(v, str):
+            return v
+        if isinstance(v, dict):
+            # LLM이 객체 전체를 id 자리에 넣었을 경우를 대비
+            return str(
+                v.get("id")
+                or v.get("scenario_npc_id")
+                or v.get("scenario_enemy_id")
+                or v.get("scenario_item_id")
+                or ""
+            )
+        return str(v)
+
+    @model_validator(mode="before")
+    @classmethod
+    def alias_ids(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # id 필드가 없고 다른 명칭이 있는 경우 복사
+            if "id" not in data:
+                val = (
+                    data.get("scenario_npc_id")
+                    or data.get("scenario_enemy_id")
+                    or data.get("scenario_item_id")
+                )
+                if val:
+                    data["id"] = val
+        return data
 
 
 class PlannerOutput(BaseModel):
