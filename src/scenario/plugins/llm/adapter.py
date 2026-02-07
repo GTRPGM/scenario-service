@@ -1,4 +1,5 @@
 import json
+import asyncio
 from typing import Any, List, Optional
 
 import httpx
@@ -37,6 +38,8 @@ class ScenarioChatModel(LLMPort):
 
     # Use a long timeout for LLM generation
     timeout: float = 600.0
+    llm_retry_attempts: int = 3
+    llm_retry_base_delay: float = 0.8
 
     @property
     def _llm_type(self) -> str:
@@ -87,11 +90,34 @@ class ScenarioChatModel(LLMPort):
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             target_url = f"{self.base_url.rstrip('/')}/api/v1/chat/completions"
             print(f"📡 [LLM] Sending request to: {target_url}")
-            response = await client.post(
-                target_url,
-                json=request_body.model_dump(exclude_none=True),
-            )
-            response.raise_for_status()
+            response: httpx.Response | None = None
+            last_error: Exception | None = None
+            for attempt in range(1, self.llm_retry_attempts + 1):
+                try:
+                    response = await client.post(
+                        target_url,
+                        json=request_body.model_dump(exclude_none=True),
+                    )
+                    if response.status_code >= 500:
+                        raise httpx.HTTPStatusError(
+                            f"llm gateway {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    break
+                except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                    last_error = e
+                    if attempt >= self.llm_retry_attempts:
+                        raise
+                    await asyncio.sleep(
+                        self.llm_retry_base_delay * (2 ** (attempt - 1))
+                    )
+
+            if response is None:
+                if last_error:
+                    raise last_error
+                raise RuntimeError("LLM request failed without response")
 
             chat_response = ChatCompletionResponse(**response.json())
 

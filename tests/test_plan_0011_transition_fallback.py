@@ -86,3 +86,125 @@ async def test_validate_progression_fallback_preserves_llm_transition():
 
     assert result["next_seq_id"] == "seq-9"
     assert result["reason"] == "llm transition"
+
+
+@pytest.mark.asyncio
+async def test_validate_progression_infers_next_seq_when_next_act_only():
+    repo = MagicMock()
+
+    async def _get_act_context(scenario_id: str, act_id: str):
+        if act_id == "act-1":
+            return {
+                "act": {"name": "A1", "goal": "G1", "exit_criteria": "E1"},
+                "sequences": [{"id": "seq-1", "name": "S1", "exit_triggers": []}],
+            }
+        if act_id == "act-2":
+            return {
+                "act": {"name": "A2", "goal": "G2", "exit_criteria": "E2"},
+                "sequences": [{"id": "seq-2", "name": "S2", "exit_triggers": []}],
+            }
+        return None
+
+    repo.get_act_context = AsyncMock(side_effect=_get_act_context)
+    writer = MagicMock()
+    validator = MagicMock()
+    validator.run = AsyncMock(
+        return_value={
+            "is_triggered": True,
+            "reason": "advance act",
+            "next_act_id": "act-2",
+            "next_seq_id": None,
+            "suggested_narration": None,
+        }
+    )
+
+    engine = ScenarioEngine(repository=repo, writer=writer)
+    result = await engine.validate_progression(
+        scenario_id="scn-1",
+        act_id="act-1",
+        seq_id="seq-1",
+        user_input="다음 막으로 진행한다",
+        validator_agent=validator,
+    )
+
+    assert result["next_act_id"] == "act-2"
+    assert result["next_seq_id"] == "seq-2"
+    assert "inferred next_seq_id" in result["reason"]
+
+
+@pytest.mark.asyncio
+async def test_validate_progression_drops_next_act_when_pair_cannot_be_inferred():
+    repo = MagicMock()
+
+    async def _get_act_context(scenario_id: str, act_id: str):
+        if act_id == "act-1":
+            return {
+                "act": {"name": "A1", "goal": "G1", "exit_criteria": "E1"},
+                "sequences": [{"id": "seq-1", "name": "S1", "exit_triggers": []}],
+            }
+        return None
+
+    repo.get_act_context = AsyncMock(side_effect=_get_act_context)
+    writer = MagicMock()
+    validator = MagicMock()
+    validator.run = AsyncMock(
+        return_value={
+            "is_triggered": True,
+            "reason": "bad transition",
+            "next_act_id": "act-99",
+            "next_seq_id": None,
+            "suggested_narration": None,
+        }
+    )
+
+    engine = ScenarioEngine(repository=repo, writer=writer)
+    result = await engine.validate_progression(
+        scenario_id="scn-1",
+        act_id="act-1",
+        seq_id="seq-1",
+        user_input="다음 막으로 진행한다",
+        validator_agent=validator,
+    )
+
+    assert result["next_act_id"] is None
+    assert result.get("next_seq_id") is None
+    assert "dropped next_act_id" in result["reason"]
+
+
+@pytest.mark.asyncio
+async def test_validate_progression_blocks_backward_transition_and_marks_should_end():
+    repo = MagicMock()
+    repo.get_act_context = AsyncMock(
+        return_value={
+            "act": {"name": "A1", "goal": "G1", "exit_criteria": "E1"},
+            "sequences": [
+                {"id": "seq-1", "name": "S1", "exit_triggers": []},
+                {"id": "seq-2", "name": "S2", "exit_triggers": []},
+                {"id": "seq-3", "name": "S3", "exit_triggers": []},
+            ],
+        }
+    )
+    writer = MagicMock()
+    validator = MagicMock()
+    validator.run = AsyncMock(
+        return_value={
+            "is_triggered": True,
+            "reason": "llm suggested backward",
+            "next_act_id": None,
+            "next_seq_id": "seq-2",
+            "suggested_narration": None,
+        }
+    )
+
+    engine = ScenarioEngine(repository=repo, writer=writer)
+    result = await engine.validate_progression(
+        scenario_id="scn-1",
+        act_id="act-1",
+        seq_id="seq-3",
+        user_input="전투를 마무리한다",
+        validator_agent=validator,
+    )
+
+    assert result.get("next_seq_id") is None
+    assert result.get("should_end") is True
+    assert "blocked non-forward" in result.get("reason", "")

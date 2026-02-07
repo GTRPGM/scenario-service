@@ -299,4 +299,6 @@ class ValidationOutput(BaseModel):
 
     next_seq_id: Optional[str] = None
 
+    should_end: bool = False
+
     suggested_narration: Optional[str] = None

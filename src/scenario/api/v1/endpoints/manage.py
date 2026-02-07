@@ -1,5 +1,5 @@
 import logging
-from typing import Annotated, Dict, List
+from typing import Annotated, Any, Dict, List
 from uuid import UUID
 
 import httpx
@@ -17,6 +17,12 @@ class TransitionRequest(BaseModel):
     session_id: str
     next_act_id: str | None = None
     next_seq_id: str
+
+
+class DebugInjectSaveRequest(BaseModel):
+    payload: Dict[str, Any]
+    concept: str = "debug-direct-inject"
+    inject_to_state: bool = True
 
 
 @router.get("/scenarios", response_model=List[Dict])
@@ -62,4 +68,26 @@ async def transition_session(
         raise HTTPException(status_code=502, detail=detail) from e
     except Exception as e:
         detail = f"Transition failed: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail) from e
+
+
+@router.post("/scenarios/debug/inject-save", status_code=status.HTTP_200_OK)
+async def debug_inject_and_save_scenario(
+    request: DebugInjectSaveRequest,
+    engine: Annotated[ScenarioEngine, Depends(get_scenario_engine)],
+):
+    """Debug-only: save scenario payload into scenario-service and optionally inject to state-manager."""
+    try:
+        return await engine.save_and_inject_debug(
+            request.payload,
+            concept=request.concept,
+            inject_to_state=request.inject_to_state,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except httpx.HTTPStatusError as e:
+        detail = f"State-manager inject failed: {e.response.status_code}"
+        raise HTTPException(status_code=502, detail=detail) from e
+    except Exception as e:
+        detail = f"Debug inject/save failed: {str(e)}"
         raise HTTPException(status_code=500, detail=detail) from e

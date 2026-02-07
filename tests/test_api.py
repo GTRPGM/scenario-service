@@ -1,6 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import httpx
+
 
 def test_basic_health_check(client):
     response = client.get("/health")
@@ -118,3 +120,51 @@ def test_generate_scenario_endpoint(client):
     response = client.post("/api/v1/generation/pure", json=payload)
     assert response.status_code == 201
     assert response.json()["status"] == "success"
+
+
+def test_debug_inject_save_endpoint(client):
+    payload = {
+        "payload": {
+            "title": "DEBUG_SCENARIO",
+            "acts": [{"id": "act-1", "name": "A1", "sequences": ["seq-1"]}],
+            "sequences": [{"id": "seq-1", "name": "S1", "npcs": [], "enemies": [], "items": []}],
+            "npcs": [],
+            "enemies": [],
+            "items": [],
+            "relations": [],
+        },
+        "inject_to_state": False,
+    }
+
+    with patch(
+        "scenario.core.engine.scenario_engine.ScenarioEngine.save_and_inject_debug",
+        new_callable=AsyncMock,
+    ) as mock_debug:
+        mock_debug.return_value = {
+            "status": "success",
+            "scenario_service_id": str(uuid4()),
+            "saved": True,
+            "injected": False,
+        }
+        response = client.post("/api/v1/manage/scenarios/debug/inject-save", json=payload)
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        assert response.json()["saved"] is True
+
+
+def test_debug_inject_save_endpoint_state_inject_failure(client):
+    payload = {"payload": {"title": "DEBUG_SCENARIO"}, "inject_to_state": True}
+
+    with patch(
+        "scenario.core.engine.scenario_engine.ScenarioEngine.save_and_inject_debug",
+        new_callable=AsyncMock,
+    ) as mock_debug:
+        req = httpx.Request("POST", "http://state-manager/state/scenario/inject")
+        res = httpx.Response(500, request=req)
+        mock_debug.side_effect = httpx.HTTPStatusError(
+            "state inject failed",
+            request=req,
+            response=res,
+        )
+        response = client.post("/api/v1/manage/scenarios/debug/inject-save", json=payload)
+        assert response.status_code == 502

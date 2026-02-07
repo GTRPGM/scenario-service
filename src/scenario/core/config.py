@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     LLM_GATEWAY_PORT: int = 8060
 
     # LLM Settings
-    LLM_MODEL_NAME: str = "gemini-2.0-flash-lite"
+    LLM_MODEL_NAME: str = "gpt-4o-mini"
 
     # Logic Settings
     SCENARIO_GRAPH_NAME: str = "scenario_graph"

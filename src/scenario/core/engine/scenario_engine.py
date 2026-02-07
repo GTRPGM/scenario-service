@@ -391,6 +391,71 @@ class ScenarioEngine:
 
             return result
 
+    async def save_and_inject_debug(
+        self,
+        payload: Dict[str, Any],
+        *,
+        concept: str = "debug-direct-inject",
+        inject_to_state: bool = True,
+    ) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            raise ValueError("payload must be an object")
+
+        normalized: Dict[str, Any] = dict(payload)
+        normalized.setdefault("title", "DEBUG_SCENARIO")
+        normalized.setdefault("summary", normalized.get("description", ""))
+        normalized.setdefault("description", normalized.get("summary", ""))
+        normalized.setdefault("difficulty", "normal")
+        normalized.setdefault("genre", "debug")
+        normalized.setdefault("tags", ["debug"])
+        normalized.setdefault("acts", [])
+        normalized.setdefault("sequences", [])
+        normalized.setdefault("npcs", [])
+        normalized.setdefault("enemies", [])
+        normalized.setdefault("items", [])
+        normalized.setdefault("relations", [])
+        normalized.setdefault("total_acts", max(1, len(normalized.get("acts", [])) or 1))
+
+        # Allow simplified payloads without explicit acts by creating act-1.
+        if not normalized.get("acts") and normalized.get("sequences"):
+            seq_ids = [
+                str(s.get("id"))
+                for s in normalized.get("sequences", [])
+                if isinstance(s, dict) and s.get("id")
+            ]
+            normalized["acts"] = [
+                {
+                    "id": "act-1",
+                    "name": "Debug Act",
+                    "description": "Auto-generated act for debug injection",
+                    "goal": "debug",
+                    "exit_criteria": "debug",
+                    "sequences": seq_ids,
+                }
+            ]
+            normalized["total_acts"] = 1
+
+        self._validate_state_payload_references(normalized)
+        scenario_id = await self.repository.save_scenario(concept, normalized)
+
+        result: Dict[str, Any] = {
+            "status": "success",
+            "scenario_service_id": str(scenario_id),
+            "saved": True,
+            "injected": False,
+        }
+
+        if inject_to_state:
+            inject_result = await self.inject_to_state_manager(scenario_id)
+            result["injected"] = True
+            result["state_injection_result"] = inject_result
+            result["state_manager_scenario_id"] = (
+                inject_result.get("scenario_id")
+                or inject_result.get("data", {}).get("scenario_id")
+            )
+
+        return result
+
     def _parse_transition_id(self, raw_id: str, prefix: str) -> tuple[int, str]:
         value = str(raw_id or "").strip().lower()
         if not value:
@@ -699,12 +764,81 @@ class ScenarioEngine:
 
         # ValidatorAgent handles the logic via LLM
         result = await validator_agent.run(input_data)
-        return self._apply_transition_fallback(
+        result = self._apply_transition_fallback(
             result=result,
             user_input=user_input,
             current_seq=current_seq,
             sequences=sequences,
         )
+        result = await self._ensure_transition_pair(
+            result=result,
+            scenario_id=scenario_id,
+            current_act_id=norm_act_id,
+            current_seq_id=norm_seq_id,
+            current_act_sequences=sequences,
+        )
+        result = self._guard_non_forward_sequence_transition(
+            result=result,
+            current_seq_id=norm_seq_id,
+            sequences=sequences,
+        )
+        return self._mark_should_end_if_terminal_triggered(
+            result=result,
+            current_seq_id=norm_seq_id,
+            sequences=sequences,
+        )
+
+    async def _ensure_transition_pair(
+        self,
+        result: Dict[str, Any],
+        scenario_id: str,
+        current_act_id: str,
+        current_seq_id: str,
+        current_act_sequences: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        if not isinstance(result, dict):
+            return result
+
+        def normalize(val: Any) -> str:
+            return str(val or "").strip().lower()
+
+        next_act_id = result.get("next_act_id")
+        next_seq_id = result.get("next_seq_id")
+        if not next_act_id or next_seq_id:
+            return result
+
+        normalized_next_act = normalize(next_act_id)
+        inferred_seq: Optional[str] = None
+        next_ctx = await self.repository.get_act_context(
+            scenario_id, normalized_next_act
+        )
+        next_sequences = (next_ctx or {}).get("sequences", [])
+        if next_sequences:
+            first_seq = next_sequences[0].get("id")
+            if first_seq:
+                inferred_seq = str(first_seq)
+
+        if inferred_seq:
+            reason = str(result.get("reason") or "").strip()
+            result["next_seq_id"] = inferred_seq
+            if reason:
+                result["reason"] = (
+                    f"{reason} | fallback: inferred next_seq_id for next_act_id"
+                )
+            else:
+                result["reason"] = "fallback: inferred next_seq_id for next_act_id"
+            return result
+
+        # Avoid downstream 502 in GM commit_state when transition pair is incomplete.
+        result["next_act_id"] = None
+        reason = str(result.get("reason") or "").strip()
+        if reason:
+            result["reason"] = (
+                f"{reason} | fallback: dropped next_act_id without next_seq_id"
+            )
+        else:
+            result["reason"] = "fallback: dropped next_act_id without next_seq_id"
+        return result
 
     def _apply_transition_fallback(
         self,
@@ -750,24 +884,102 @@ class ScenarioEngine:
         current_seq_id: str,
         sequences: List[Dict[str, Any]],
     ) -> Optional[str]:
-        if not current_seq_id or not sequences:
+        ordered = self._ordered_sequences(sequences)
+        if not current_seq_id or not ordered:
             return None
 
-        def norm(val: Any) -> str:
-            return str(val or "").strip().lower()
-
         current_idx = None
-        normalized_current = norm(current_seq_id)
-        for i, seq in enumerate(sequences):
-            if norm(seq.get("id")) == normalized_current:
+        normalized_current = self._norm_text(current_seq_id)
+        for i, seq in enumerate(ordered):
+            if self._norm_text(seq.get("id")) == normalized_current:
                 current_idx = i
                 break
         if current_idx is None:
             return None
-        if current_idx + 1 >= len(sequences):
+        if current_idx + 1 >= len(ordered):
             return None
-        next_id = sequences[current_idx + 1].get("id")
+        next_id = ordered[current_idx + 1].get("id")
         return str(next_id) if next_id else None
+
+    def _norm_text(self, val: Any) -> str:
+        return str(val or "").strip().lower()
+
+    def _seq_sort_key(self, seq_id: Any) -> tuple[int, str]:
+        sid = str(seq_id or "")
+        nums = re.findall(r"\d+", sid)
+        return (int(nums[0]) if nums else 10**9, sid)
+
+    def _ordered_sequences(self, sequences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return sorted(sequences or [], key=lambda s: self._seq_sort_key(s.get("id")))
+
+    def _sequence_index(
+        self, seq_id: str, sequences: List[Dict[str, Any]]
+    ) -> Optional[int]:
+        normalized = self._norm_text(seq_id)
+        for i, seq in enumerate(self._ordered_sequences(sequences)):
+            if self._norm_text(seq.get("id")) == normalized:
+                return i
+        return None
+
+    def _guard_non_forward_sequence_transition(
+        self,
+        result: Dict[str, Any],
+        current_seq_id: str,
+        sequences: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        if not isinstance(result, dict):
+            return result
+        if result.get("next_act_id"):
+            return result
+        next_seq_id = result.get("next_seq_id")
+        if not next_seq_id:
+            return result
+
+        cur_idx = self._sequence_index(current_seq_id, sequences)
+        nxt_idx = self._sequence_index(str(next_seq_id), sequences)
+        if cur_idx is None or nxt_idx is None:
+            return result
+        if nxt_idx > cur_idx:
+            return result
+
+        # Block backward/same-sequence jump to avoid infinite bouncing.
+        result["next_seq_id"] = None
+        reason = str(result.get("reason") or "").strip()
+        if reason:
+            result["reason"] = f"{reason} | guard: blocked non-forward next_seq_id"
+        else:
+            result["reason"] = "guard: blocked non-forward next_seq_id"
+        return result
+
+    def _mark_should_end_if_terminal_triggered(
+        self,
+        result: Dict[str, Any],
+        current_seq_id: str,
+        sequences: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        if not isinstance(result, dict):
+            return result
+
+        result.setdefault("should_end", False)
+        if result.get("next_act_id") or result.get("next_seq_id"):
+            return result
+        if not bool(result.get("is_triggered")):
+            return result
+
+        ordered = self._ordered_sequences(sequences)
+        if not ordered:
+            return result
+        cur_idx = self._sequence_index(current_seq_id, ordered)
+        if cur_idx is None or cur_idx != len(ordered) - 1:
+            return result
+
+        result["should_end"] = True
+        reason = str(result.get("reason") or "").strip()
+        if reason:
+            result["reason"] = f"{reason} | terminal sequence reached: should_end"
+        else:
+            result["reason"] = "terminal sequence reached: should_end"
+        return result
 
     def _is_trigger_match(self, user_input: str, triggers: List[str]) -> bool:
         if not user_input or not triggers:

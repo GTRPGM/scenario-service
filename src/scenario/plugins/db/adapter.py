@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any, Dict, List, Union
 from uuid import UUID
 
@@ -646,9 +647,19 @@ class PostgresScenarioAdapter(ScenarioRepository):
 
         # Filter full sequence objects that belong to this act
         act_seq_ids = target_act.get("sequences", [])
+        seq_map = {str(s.get("id")): s for s in full_graph.get("sequences", [])}
         act_sequences = [
-            s for s in full_graph.get("sequences", []) if s["id"] in act_seq_ids
+            seq_map[str(seq_id)] for seq_id in act_seq_ids if str(seq_id) in seq_map
         ]
+
+        # Keep deterministic progression order (seq-1, seq-2, ...), even if source rows
+        # are returned out-of-order.
+        def _seq_sort_key(seq: Dict[str, Any]) -> tuple[int, str]:
+            seq_id = str(seq.get("id", ""))
+            nums = re.findall(r"\d+", seq_id)
+            return (int(nums[0]) if nums else 10**9, seq_id)
+
+        act_sequences = sorted(act_sequences, key=_seq_sort_key)
 
         return {"act": target_act, "sequences": act_sequences}
 
