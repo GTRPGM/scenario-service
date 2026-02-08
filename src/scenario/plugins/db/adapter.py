@@ -74,6 +74,14 @@ class PostgresScenarioAdapter(ScenarioRepository):
         all_seq_data = {s.get("id"): s for s in data.get("sequences", [])}
 
         async def _create_sequence_for_act(act_id: str, seq: Dict[str, Any]) -> None:
+            seq_metadata = (
+                seq.get("metadata") if isinstance(seq.get("metadata"), dict) else {}
+            )
+            seq_type = (
+                seq.get("sequence_type")
+                or seq_metadata.get("sequence_type")
+                or "Exploration"
+            )
             await self.db.execute(
                 seq_cypher,
                 json.dumps(
@@ -82,7 +90,7 @@ class PostgresScenarioAdapter(ScenarioRepository):
                         "act_id": act_id,
                         "seq_id": seq.get("id"),
                         "name": seq.get("name", "Untitled Sequence"),
-                        "sequence_type": seq.get("sequence_type", "Exploration"),
+                        "sequence_type": seq_type,
                         "description": seq.get("description", ""),
                         "goal": seq.get("goal", ""),
                         "exit_triggers": seq.get("exit_triggers", []),

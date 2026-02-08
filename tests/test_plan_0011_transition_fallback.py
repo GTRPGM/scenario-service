@@ -208,3 +208,153 @@ async def test_validate_progression_blocks_backward_transition_and_marks_should_
     assert result.get("next_seq_id") is None
     assert result.get("should_end") is True
     assert "blocked non-forward" in result.get("reason", "")
+
+
+@pytest.mark.asyncio
+async def test_validate_progression_infers_next_act_and_seq_on_act_boundary_trigger():
+    repo = MagicMock()
+
+    async def _get_act_context(scenario_id: str, act_id: str):
+        if act_id == "act-1":
+            return {
+                "act": {"name": "A1", "goal": "G1", "exit_criteria": "E1"},
+                "sequences": [
+                    {"id": "seq-1", "name": "S1", "exit_triggers": []},
+                    {"id": "seq-2", "name": "S2", "exit_triggers": []},
+                ],
+            }
+        if act_id == "act-2":
+            return {
+                "act": {"name": "A2", "goal": "G2", "exit_criteria": "E2"},
+                "sequences": [{"id": "seq-3", "name": "S3", "exit_triggers": []}],
+            }
+        return None
+
+    repo.get_act_context = AsyncMock(side_effect=_get_act_context)
+    writer = MagicMock()
+    validator = MagicMock()
+    validator.run = AsyncMock(
+        return_value={
+            "is_triggered": True,
+            "reason": "triggered but no ids",
+            "next_act_id": None,
+            "next_seq_id": None,
+            "suggested_narration": None,
+        }
+    )
+
+    engine = ScenarioEngine(repository=repo, writer=writer)
+    result = await engine.validate_progression(
+        scenario_id="scn-1",
+        act_id="act-1",
+        seq_id="seq-2",
+        user_input="다음 단계로 이동한다",
+        validator_agent=validator,
+    )
+
+    assert result["next_act_id"] == "act-2"
+    assert result["next_seq_id"] == "seq-3"
+    assert "inferred next_act_id/next_seq_id" in result["reason"]
+    assert result.get("should_end") is not True
+
+
+@pytest.mark.asyncio
+async def test_validate_progression_infers_next_act_when_exit_trigger_matches():
+    repo = MagicMock()
+
+    async def _get_act_context(scenario_id: str, act_id: str):
+        if act_id == "act-1":
+            return {
+                "act": {"name": "A1", "goal": "G1", "exit_criteria": "E1"},
+                "sequences": [
+                    {"id": "seq-1", "name": "S1", "exit_triggers": []},
+                    {
+                        "id": "seq-2",
+                        "name": "S2",
+                        "exit_triggers": ["다음 구역으로 이동한다."],
+                    },
+                ],
+            }
+        if act_id == "act-2":
+            return {
+                "act": {"name": "A2", "goal": "G2", "exit_criteria": "E2"},
+                "sequences": [{"id": "seq-3", "name": "S3", "exit_triggers": []}],
+            }
+        return None
+
+    repo.get_act_context = AsyncMock(side_effect=_get_act_context)
+    writer = MagicMock()
+    validator = MagicMock()
+    validator.run = AsyncMock(
+        return_value={
+            "is_triggered": False,
+            "reason": "llm undecided",
+            "next_act_id": None,
+            "next_seq_id": None,
+            "suggested_narration": None,
+        }
+    )
+
+    engine = ScenarioEngine(repository=repo, writer=writer)
+    result = await engine.validate_progression(
+        scenario_id="scn-1",
+        act_id="act-1",
+        seq_id="seq-2",
+        user_input="정비를 마치고 다음 구역으로 이동한다.",
+        validator_agent=validator,
+    )
+
+    assert result["next_act_id"] == "act-2"
+    assert result["next_seq_id"] == "seq-3"
+    assert result.get("is_triggered") is True
+
+
+@pytest.mark.asyncio
+async def test_validate_progression_recovers_when_non_forward_next_seq_is_blocked():
+    repo = MagicMock()
+
+    async def _get_act_context(scenario_id: str, act_id: str):
+        if act_id == "act-1":
+            return {
+                "act": {"name": "A1", "goal": "G1", "exit_criteria": "E1"},
+                "sequences": [
+                    {"id": "seq-1", "name": "S1", "exit_triggers": []},
+                    {
+                        "id": "seq-2",
+                        "name": "S2",
+                        "exit_triggers": ["다음 구역으로 이동한다."],
+                    },
+                ],
+            }
+        if act_id == "act-2":
+            return {
+                "act": {"name": "A2", "goal": "G2", "exit_criteria": "E2"},
+                "sequences": [{"id": "seq-3", "name": "S3", "exit_triggers": []}],
+            }
+        return None
+
+    repo.get_act_context = AsyncMock(side_effect=_get_act_context)
+    writer = MagicMock()
+    validator = MagicMock()
+    validator.run = AsyncMock(
+        return_value={
+            "is_triggered": True,
+            "reason": "llm returned same sequence",
+            "next_act_id": None,
+            "next_seq_id": "seq-2",
+            "suggested_narration": None,
+        }
+    )
+
+    engine = ScenarioEngine(repository=repo, writer=writer)
+    result = await engine.validate_progression(
+        scenario_id="scn-1",
+        act_id="act-1",
+        seq_id="seq-2",
+        user_input="다음 구역으로 이동한다.",
+        validator_agent=validator,
+    )
+
+    assert result["next_act_id"] == "act-2"
+    assert result["next_seq_id"] == "seq-3"
+    assert "recovered act-boundary transition" in result["reason"]

@@ -124,6 +124,7 @@ def test_to_state_payload_alignment():
                 "description": "Desc",
                 "goal": "Goal",
                 "exit_triggers": ["done"],
+                "metadata": {"sequence_type": "NEGOTIATION"},
                 "npcs": ["npc-1"],
                 "enemies": ["enemy-1"],
                 "items": ["101"],
@@ -162,3 +163,4 @@ def test_to_state_payload_alignment():
     assert payload["enemies"][0]["rule_id"] == 2001
     assert payload["enemies"][0]["dropped_items"] == [3001]
     assert payload["sequences"][0]["items"] == ["101"]
+    assert payload["sequences"][0]["metadata"]["sequence_type"] == "NEGOTIATION"

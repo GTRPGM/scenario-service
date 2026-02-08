@@ -127,7 +127,9 @@ def test_debug_inject_save_endpoint(client):
         "payload": {
             "title": "DEBUG_SCENARIO",
             "acts": [{"id": "act-1", "name": "A1", "sequences": ["seq-1"]}],
-            "sequences": [{"id": "seq-1", "name": "S1", "npcs": [], "enemies": [], "items": []}],
+            "sequences": [
+                {"id": "seq-1", "name": "S1", "npcs": [], "enemies": [], "items": []}
+            ],
             "npcs": [],
             "enemies": [],
             "items": [],
@@ -146,7 +148,9 @@ def test_debug_inject_save_endpoint(client):
             "saved": True,
             "injected": False,
         }
-        response = client.post("/api/v1/manage/scenarios/debug/inject-save", json=payload)
+        response = client.post(
+            "/api/v1/manage/scenarios/debug/inject-save", json=payload
+        )
         assert response.status_code == 200
         assert response.json()["status"] == "success"
         assert response.json()["saved"] is True
@@ -166,5 +170,7 @@ def test_debug_inject_save_endpoint_state_inject_failure(client):
             request=req,
             response=res,
         )
-        response = client.post("/api/v1/manage/scenarios/debug/inject-save", json=payload)
+        response = client.post(
+            "/api/v1/manage/scenarios/debug/inject-save", json=payload
+        )
         assert response.status_code == 502

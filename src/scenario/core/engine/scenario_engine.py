@@ -414,7 +414,9 @@ class ScenarioEngine:
         normalized.setdefault("enemies", [])
         normalized.setdefault("items", [])
         normalized.setdefault("relations", [])
-        normalized.setdefault("total_acts", max(1, len(normalized.get("acts", [])) or 1))
+        normalized.setdefault(
+            "total_acts", max(1, len(normalized.get("acts", [])) or 1)
+        )
 
         # Allow simplified payloads without explicit acts by creating act-1.
         if not normalized.get("acts") and normalized.get("sequences"):
@@ -449,10 +451,9 @@ class ScenarioEngine:
             inject_result = await self.inject_to_state_manager(scenario_id)
             result["injected"] = True
             result["state_injection_result"] = inject_result
-            result["state_manager_scenario_id"] = (
-                inject_result.get("scenario_id")
-                or inject_result.get("data", {}).get("scenario_id")
-            )
+            result["state_manager_scenario_id"] = inject_result.get(
+                "scenario_id"
+            ) or inject_result.get("data", {}).get("scenario_id")
 
         return result
 
@@ -613,6 +614,11 @@ class ScenarioEngine:
                 mapped = item_id_map.get(key) or item_id_map.get(key.lower())
                 if mapped:
                     mapped_items.append(mapped)
+            metadata = dict(seq.get("metadata") or {})
+            # Backward compatibility:
+            # legacy payloads may carry sequence_type at top-level.
+            if not metadata.get("sequence_type") and seq.get("sequence_type"):
+                metadata["sequence_type"] = seq.get("sequence_type")
             state_sequences.append(
                 {
                     "id": seq.get("id"),
@@ -621,6 +627,7 @@ class ScenarioEngine:
                     "description": seq.get("description"),
                     "goal": seq.get("goal"),
                     "exit_triggers": seq.get("exit_triggers", []),
+                    "metadata": metadata,
                     "npcs": seq.get("npcs", []),
                     "enemies": seq.get("enemies", []),
                     "items": mapped_items,
@@ -782,6 +789,15 @@ class ScenarioEngine:
             current_seq_id=norm_seq_id,
             sequences=sequences,
         )
+        result = await self._recover_act_boundary_transition(
+            result=result,
+            scenario_id=scenario_id,
+            current_act_id=norm_act_id,
+            current_seq_id=norm_seq_id,
+            current_act_sequences=sequences,
+            user_input=user_input,
+            current_seq=current_seq,
+        )
         return self._mark_should_end_if_terminal_triggered(
             result=result,
             current_seq_id=norm_seq_id,
@@ -804,6 +820,38 @@ class ScenarioEngine:
 
         next_act_id = result.get("next_act_id")
         next_seq_id = result.get("next_seq_id")
+
+        # LLM may only signal trigger at an act boundary
+        # without explicit transition IDs.
+        # In that case, advance to the next act's first sequence when resolvable.
+        if (
+            not next_act_id
+            and not next_seq_id
+            and bool(result.get("is_triggered"))
+            and self._is_terminal_sequence(current_seq_id, current_act_sequences)
+        ):
+            inferred_next_act_id = self._infer_next_act_id(current_act_id)
+            if inferred_next_act_id:
+                next_ctx = await self.repository.get_act_context(
+                    scenario_id, inferred_next_act_id
+                )
+                next_sequences = (next_ctx or {}).get("sequences", [])
+                if next_sequences:
+                    first_seq = next_sequences[0].get("id")
+                    if first_seq:
+                        reason = str(result.get("reason") or "").strip()
+                        result["next_act_id"] = inferred_next_act_id
+                        result["next_seq_id"] = str(first_seq)
+                        if reason:
+                            result["reason"] = (
+                                f"{reason} | fallback: inferred next_act_id/next_seq_id"
+                            )
+                        else:
+                            result["reason"] = (
+                                "fallback: inferred next_act_id/next_seq_id"
+                            )
+                        return result
+
         if not next_act_id or next_seq_id:
             return result
 
@@ -863,15 +911,23 @@ class ScenarioEngine:
         if not self._is_trigger_match(user_input, triggers):
             return result
 
+        # Preserve trigger signal even when this act has no forward sequence.
+        result["is_triggered"] = True
         next_seq_id = self._infer_next_sequence_id(
             current_seq_id=str(current_seq.get("id", "")),
             sequences=sequences,
         )
         if not next_seq_id:
+            reason = str(result.get("reason") or "").strip()
+            if reason:
+                result["reason"] = (
+                    f"{reason} | fallback: exit_trigger heuristic matched"
+                )
+            else:
+                result["reason"] = "fallback: exit_trigger heuristic matched"
             return result
 
         reason = str(result.get("reason") or "").strip()
-        result["is_triggered"] = True
         result["next_seq_id"] = next_seq_id
         if reason:
             result["reason"] = f"{reason} | fallback: exit_trigger heuristic matched"
@@ -909,7 +965,9 @@ class ScenarioEngine:
         nums = re.findall(r"\d+", sid)
         return (int(nums[0]) if nums else 10**9, sid)
 
-    def _ordered_sequences(self, sequences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _ordered_sequences(
+        self, sequences: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         return sorted(sequences or [], key=lambda s: self._seq_sort_key(s.get("id")))
 
     def _sequence_index(
@@ -920,6 +978,22 @@ class ScenarioEngine:
             if self._norm_text(seq.get("id")) == normalized:
                 return i
         return None
+
+    def _is_terminal_sequence(
+        self, seq_id: str, sequences: List[Dict[str, Any]]
+    ) -> bool:
+        ordered = self._ordered_sequences(sequences)
+        if not ordered:
+            return False
+        idx = self._sequence_index(seq_id, ordered)
+        return idx is not None and idx == len(ordered) - 1
+
+    def _infer_next_act_id(self, current_act_id: str) -> Optional[str]:
+        sid = str(current_act_id or "").strip().lower()
+        m = re.match(r"^act-(\d+)$", sid)
+        if not m:
+            return None
+        return f"act-{int(m.group(1)) + 1}"
 
     def _guard_non_forward_sequence_transition(
         self,
@@ -979,6 +1053,57 @@ class ScenarioEngine:
             result["reason"] = f"{reason} | terminal sequence reached: should_end"
         else:
             result["reason"] = "terminal sequence reached: should_end"
+        return result
+
+    async def _recover_act_boundary_transition(
+        self,
+        result: Dict[str, Any],
+        scenario_id: str,
+        current_act_id: str,
+        current_seq_id: str,
+        current_act_sequences: List[Dict[str, Any]],
+        user_input: str,
+        current_seq: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if not isinstance(result, dict):
+            return result
+        if result.get("next_act_id") or result.get("next_seq_id"):
+            return result
+        if not bool(result.get("is_triggered")):
+            return result
+        if not self._is_terminal_sequence(current_seq_id, current_act_sequences):
+            return result
+        triggers = [
+            str(t).strip()
+            for t in (current_seq.get("exit_triggers") or [])
+            if str(t).strip()
+        ]
+        if not self._is_trigger_match(user_input, triggers):
+            return result
+
+        inferred_next_act_id = self._infer_next_act_id(current_act_id)
+        if not inferred_next_act_id:
+            return result
+
+        next_ctx = await self.repository.get_act_context(
+            scenario_id, inferred_next_act_id
+        )
+        next_sequences = (next_ctx or {}).get("sequences", [])
+        if not next_sequences:
+            return result
+
+        first_seq = next_sequences[0].get("id")
+        if not first_seq:
+            return result
+
+        reason = str(result.get("reason") or "").strip()
+        result["next_act_id"] = inferred_next_act_id
+        result["next_seq_id"] = str(first_seq)
+        result["should_end"] = False
+        if reason:
+            result["reason"] = f"{reason} | fallback: recovered act-boundary transition"
+        else:
+            result["reason"] = "fallback: recovered act-boundary transition"
         return result
 
     def _is_trigger_match(self, user_input: str, triggers: List[str]) -> bool:
