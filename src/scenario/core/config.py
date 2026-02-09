@@ -15,22 +15,24 @@ class Settings(BaseSettings):
     DB_HOST: str = "localhost"
 
     # External Service URLs
-    BE_ROUTER_HOST: str = "be_router"
+    # Docker compose service names use hyphens.
+    BE_ROUTER_HOST: str = "be-router"
     BE_ROUTER_PORT: int = 8010
 
     GM_HOST: str = "gm"
     GM_PORT: int = 8020
 
-    SCENARIO_SERVICE_HOST: str = "scenario_service"
-    SCENARIO_SERVICE_PORT: int = 8030
+    # Self (rarely used, but keep consistent)
+    SCENARIO_SERVICE_HOST: str = "scenario-service"
+    SCENARIO_SERVICE_PORT: int = 8040
 
-    STATE_MANAGER_HOST: str = "state_manager"
-    STATE_MANAGER_PORT: int = 8040
+    STATE_MANAGER_HOST: str = "state-manager"
+    STATE_MANAGER_PORT: int = 8030
 
-    RULE_ENGINE_HOST: str = "rule_engine"
+    RULE_ENGINE_HOST: str = "rule-engine"
     RULE_ENGINE_PORT: int = 8050
 
-    LLM_GATEWAY_HOST: str = "llm_gateway"
+    LLM_GATEWAY_HOST: str = "llm-gateway"
     LLM_GATEWAY_PORT: int = 8060
 
     # LLM Settings
