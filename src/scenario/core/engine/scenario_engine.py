@@ -3,6 +3,8 @@ import re
 import uuid
 from typing import Any, Dict, List, Optional
 
+from fastapi import HTTPException
+
 from scenario.core.engine.writer_graph import ScenarioWriterGraph
 from scenario.core.models.generation import ScenarioInjectSchema
 from scenario.interfaces.rule_engine import RuleEngineRepository
@@ -29,6 +31,49 @@ class ScenarioEngine:
         print(f"🧠 [LLM] Starting generation for concept: '{concept}'")
         final_state = await self.writer.run(concept)
         print("🧠 [LLM] Generation complete. Packaging data...")
+
+        if not bool(final_state.get("is_consistent", False)):
+            reviews = final_state.get("reviews", []) or []
+            try:
+                plan = final_state.get("plan") or {}
+                content = final_state.get("content") or {}
+                npc_m = plan.get("npc_manifest") or []
+                enemy_m = plan.get("enemy_manifest") or []
+                item_m = plan.get("item_manifest") or []
+                seqs = (content.get("sequences") or []) if isinstance(content, dict) else []
+                seq_counts = []
+                for s in seqs:
+                    if not isinstance(s, dict):
+                        continue
+                    sid = s.get("id")
+                    npcs = s.get("npcs") or []
+                    enemies = s.get("enemies") or []
+                    items = s.get("items") or []
+                    seq_counts.append(
+                        {
+                            "id": sid,
+                            "sequence_type": s.get("sequence_type"),
+                            "npcs": len(npcs) if isinstance(npcs, list) else None,
+                            "enemies": len(enemies) if isinstance(enemies, list) else None,
+                            "items": len(items) if isinstance(items, list) else None,
+                        }
+                    )
+                logger.error(
+                    "Scenario generation rejected by reviewer. acts=%s seqs=%s npc_m=%s enemy_m=%s item_m=%s seq_counts=%s reviews=%s",
+                    len(plan.get("acts") or []) if isinstance(plan, dict) else None,
+                    len(seqs),
+                    len(npc_m) if isinstance(npc_m, list) else None,
+                    len(enemy_m) if isinstance(enemy_m, list) else None,
+                    len(item_m) if isinstance(item_m, list) else None,
+                    seq_counts,
+                    reviews,
+                )
+            except Exception:
+                logger.error("Scenario generation rejected by reviewer. reviews=%s", reviews)
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "Scenario generation inconsistent", "reviews": reviews},
+            )
 
         scenario_data = self._package_scenario(final_state)
         # 1. Validation BEFORE Saving: Fail fast if schema is not satisfied
@@ -191,6 +236,9 @@ class ScenarioEngine:
             for prefix in ["item", "npc", "enemy", "act", "seq"]:
                 if s.startswith(prefix):
                     s = s[len(prefix) :]
+            # Normalize leading zeros so "01" and "1" map to the same key.
+            if s.isdigit():
+                s = s.lstrip("0") or "0"
             return s
 
         seq_map = {

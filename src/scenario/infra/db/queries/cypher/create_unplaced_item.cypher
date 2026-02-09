@@ -1,4 +1,4 @@
-SELECT * FROM cypher('scenario_graph', $$
+SELECT * FROM cypher('scenario_graph'::name, $$
     MATCH (s:Scenario {id: $scenario_id})
     CREATE (s)-[:HAS_UNPLACED_ENTITY]->(e:EntityTemplate {
         id: $ent_id,
@@ -11,4 +11,4 @@ SELECT * FROM cypher('scenario_graph', $$
         meta: $meta,
         dropped_items: []
     })
-$$, $1) as (v agtype);
+$$::cstring, $1::agtype) as (v agtype);

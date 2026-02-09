@@ -1,6 +1,6 @@
 -- src/scenario/infra/db/queries/cypher/get_scenario_full_graph.cypher
 
-SELECT * FROM cypher('scenario_graph', $$
+SELECT * FROM cypher('scenario_graph'::name, $$
     MATCH (scenario_node:Scenario)
     WHERE scenario_node.id = $scenario_id
     OPTIONAL MATCH (scenario_node)-[:HAS_ACT]->(act_node:Act)
@@ -26,7 +26,7 @@ SELECT * FROM cypher('scenario_graph', $$
         entity_node.id as ent_id, entity_node.master_id as ent_master_id, entity_node.name as ent_name, entity_node.category as ent_cat,
         entity_node.description as ent_desc, entity_node.tags as ent_tags, entity_node.state as ent_state,
         entity_node.meta as ent_meta, entity_node.dropped_items as ent_drops
-$$, $1) as (
+$$::cstring, $1::agtype) as (
     scenario_id agtype, state_manager_id agtype, title agtype, concept agtype, summary agtype, description agtype,
     difficulty agtype, genre agtype, tags agtype, total_acts agtype,
     act_id agtype, act_name agtype, act_goal agtype,

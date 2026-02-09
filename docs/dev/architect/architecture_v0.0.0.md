@@ -37,4 +37,6 @@
 
 ## Compatibility / migration notes
 
-- 초기 버전으로 해당 없음
+- 시나리오 생성 결과는 state-manager 주입 결과와 함께 검증하여 서사 구조와 상태 참조의 동시 정합성을 보장해야 한다.
+- 회귀 테스트는 동일 컨셉 입력에 대해 Act/Sequence/Entity 참조 계약이 유지되는지 우선 확인한다.
+- 루트 `docker-compose.local.yml` 기준 실행 시 시나리오 서비스는 `18040` 포트를 사용하고 DB는 `scenario_db`/`scenario_user`를 사용한다.

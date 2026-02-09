@@ -17,7 +17,8 @@
 ### How to run
 
 - 로컬 실행: `bin/project run` (Port: 8040)
-- Docker 실행: `bin/project up` (LLM 모델: `gpt-4o-mini`)
+- 루트 Compose 실행: `bin/project up scenario-service`
+- 루트 Compose 포트: `http://localhost:18040`
 
 ### How to test (unit)
 
@@ -32,6 +33,8 @@
 - `uv` 패키지 매니저 사용 권장
 - `src/` 디렉토리에 소스 코드가 위치하는 layout
 - 에이전트 프롬프트는 `src/scenario/infra/prompts/`에서 관리
+- 로컬 compose DB 매핑은 `scenario_db` / `scenario_user`
+- 통합 검증 시 생성 결과와 state-manager 주입 결과를 함께 비교해 서사/상태 참조 불일치를 분리 진단해야 함
 <!-- PROJ_UNDERSTANDING_END -->
 
 <!-- PROJ_WORKNOTES_BEGIN -->
@@ -74,4 +77,15 @@
 - What I learned / updated understanding:
   - 현재 시나리오 서비스의 `Settings`는 `LLM_GATEWAY_HOST`와 `PORT`를 분리하여 URL을 구성하므로, 환경 변수 주입 시 URL 전체가 아닌 호스트명을 전달해야 함.
   - 인프라 게이트웨이의 모델 지원 현황이나 API 키 설정 상태에 따라 서비스 생성이 중단될 수 있으므로, 에이전트 레이어에서의 예외 처리 강화가 필요함.
+
+### plan_0002 - 생성-주입 정합성 회귀 테스트 베이스 구축 (planned)
+
+- Work (brief):
+  - 생성 payload와 주입 payload를 함께 검증해 서사/상태 불일치를 자동 탐지하는 테스트 베이스를 구축할 예정.
+- Actions planned (detailed):
+  - `scripts/test_generation_integration.py`에 생성/주입 스냅샷 저장과 구조 diff 출력 추가.
+  - 불일치 유형을 `NarrativeStructureMismatch`, `StateReferenceMismatch`로 분리.
+  - 동일 컨셉 회귀 입력에 대한 핵심 계약(Act-Sequence-Entity 참조) 자동 검증 추가.
+- What to validate:
+  - state-manager 주입 성공률, 참조 무결성, 회귀 재현성.
   <!-- PROJ_WORKNOTES_END -->

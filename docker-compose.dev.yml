@@ -17,10 +17,24 @@ services:
       DB_PORT: "${DB_PORT:-5432}"
       DB_NAME: "${DB_NAME}"
 
-      # External Service URLs
-      STATE_SERVICE_URL: "${STATE_SERVICE_URL}"
-      RULE_SERVICE_URL: "${RULE_SERVICE_URL}"
-      LLM_GATEWAY_URL: "${LLM_GATEWAY_URL}"
+      # External Services (HOST/PORT injection)
+      BE_ROUTER_HOST: ${BE_ROUTER_HOST:-be-router}
+      BE_ROUTER_PORT: ${BE_ROUTER_PORT:-8010}
+
+      GM_HOST: ${GM_HOST:-gm}
+      GM_PORT: ${GM_PORT:-8020}
+
+      STATE_MANAGER_HOST: ${STATE_MANAGER_HOST:-state-manager}
+      STATE_MANAGER_PORT: ${STATE_MANAGER_PORT:-8030}
+
+      SCENARIO_SERVICE_HOST: ${SCENARIO_SERVICE_HOST:-scenario-service}
+      SCENARIO_SERVICE_PORT: ${SCENARIO_SERVICE_PORT:-8040}
+
+      RULE_ENGINE_HOST: ${RULE_ENGINE_HOST:-rule-engine}
+      RULE_ENGINE_PORT: ${RULE_ENGINE_PORT:-8050}
+
+      LLM_GATEWAY_HOST: ${LLM_GATEWAY_HOST:-llm-gateway}
+      LLM_GATEWAY_PORT: ${LLM_GATEWAY_PORT:-8060}
 
       # LLM Settings
       LLM_MODEL_NAME: "${LLM_MODEL_NAME:-gemini-2.5-flash-lite}"

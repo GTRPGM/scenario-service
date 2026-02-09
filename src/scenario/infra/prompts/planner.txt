@@ -11,34 +11,53 @@
    - **Item/Object**: 최소 **4종** 이상 정의하십시오. (열쇠, 무기, 포션, **작동 가능한 장치**, **숨겨진 문** 등)
    - *경고: 위 수량을 충족하지 못하면 기획이 승인되지 않습니다.*
 5. **오브젝트 엔티티화**: 플레이어가 조작하거나 조사해야 하는 문, 장치, 보물상자, 비석 등은 `item_manifest` 또는 `npc_manifest`에 포함하여 엔티티로 관리하십시오.
+6. **ID 규칙(중요)**:
+   - Act ID는 `act-1`, `act-2` ... 형식으로 작성하십시오.
+   - Sequence ID는 `seq-1`, `seq-2` ... 형식으로 작성하십시오.
+   - Act의 `sequences`에는 **반드시 Sequence ID 리스트**를 넣으십시오. (제목 문자열 금지)
+7. **구조 고정(중요)**:
+   - 기본은 **3개 Act, 총 6개 Sequence**로 구성하십시오. (각 Act 당 2개 Sequence)
+   - `total_acts`는 3으로 설정하고, `acts`는 `act-01..act-03`만 사용하십시오.
+   - `acts`는 `act-1..act-3`만 사용하십시오.
+   - `acts[*].sequences`는 `seq-1..seq-6`을 **중복 없이 정확히 한 번씩** 배치하십시오.
+   - 컨셉에서 Act/Sequence 개수가 명시되면 그 개수를 우선하되, 최소 3 Act / 6 Sequence는 유지하십시오.
 
 [출력 형식]
-반드시 다음 키를 포함하는 JSON 형식으로 출력하십시오:
+반드시 아래 스키마에 맞는 JSON만 출력하십시오(키 이름/타입 엄수):
 {
   "title": "시나리오 제목",
-  "summary": "전체 줄거리 요약",
+  "description": "시나리오의 세계관/분위기/핵심 갈등에 대한 상세 설명(1~3문단)",
   "difficulty": "난이도",
   "genre": "장르",
   "tags": ["태그1", "태그2"],
   "total_acts": 3,
   "acts": [
     {
-      "id": "act-01",
+      "id": "act-1",
       "name": "액트 이름",
       "region_name": "지역명",
-      "region_description": "지역에 대한 상세 묘사",
+      "description": "해당 지역/액트의 상세 묘사(서사적/감각적 요소 포함)",
       "goal": "이 액트의 최종 목표",
       "exit_criteria": "다음 액트로 넘어가기 위한 조건",
-      "sequence_manifests": ["시퀀스 제목1", "시퀀스 제목2"]
+      "sequences": ["seq-1", "seq-2"]
     }
   ],
+  "total_summary": "플레이어에게 제공할 전체 줄거리 요약(짧게)",
   "npc_manifest": [
-    { "scenario_npc_id": "npc-01", "name": "이름", "role": "역할", "description": "특징" }
+    { "id": "npc-1", "name": "이름", "concept": "역할/특징 요약" }
   ],
   "enemy_manifest": [
-    { "scenario_enemy_id": "enemy-01", "name": "이름", "type": "타입", "description": "특징" }
+    { "id": "enemy-1", "name": "이름", "concept": "타입/위협/특징 요약" }
   ],
   "item_manifest": [
-    { "scenario_item_id": "item-01", "name": "이름", "type": "타입", "description": "특징" }
+    { "id": "item-1", "name": "이름", "concept": "용도/상호작용 방식 요약" }
+  ],
+  "relations": [
+    { "from_id": "npc-1", "to_id": "enemy-1", "relation_type": "hostile", "affinity": 0, "meta": {"reason": "간단한 이유"} }
   ]
 }
+
+[수정 모드(중요)]
+- 입력에 `current_plan_outline` 또는 `current_content_outline`가 제공되고 `previous_reviews`가 비어있지 않다면, **처음부터 새로 쓰지 마십시오.**
+- 기존 ID/구조를 유지한 채로, 리뷰에서 지적된 항목만 **최소 수정**으로 보완하십시오.
+- 특히 `acts[*].id`, `acts[*].sequences`의 시퀀스 ID 구성(`seq-1..seq-6`)은 절대 바꾸지 마십시오.

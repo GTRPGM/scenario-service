@@ -1,11 +1,13 @@
 # scripts/test_generation.py
 
 import asyncio
+import os
 import sys
 
 import httpx
 
-SCENARIO_SERVICE_URL = "http://localhost:8040"  # 시나리오 서비스 주소
+# 시나리오 서비스 주소 (로컬 스택은 18040 포트)
+SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:18040")
 
 
 async def test_scenario_generation(concept: str):

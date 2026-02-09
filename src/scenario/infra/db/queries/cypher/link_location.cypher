@@ -1,6 +1,6 @@
 -- src/scenario/infra/db/queries/cypher/link_location.cypher
 
-SELECT * FROM cypher('scenario_graph', $$
+SELECT * FROM cypher('scenario_graph'::name, $$
     MATCH (s:Scenario {id: $scenario_id})-[:HAS_ACT]->()-[:HAS_SEQUENCE]->(seq_node:Sequence {id: $seq_id})
 
     CREATE (seq_node)-[:LOCATED_AT]->(loc_node:Location {
@@ -11,4 +11,4 @@ SELECT * FROM cypher('scenario_graph', $$
         danger_min: $danger_min,
         danger_max: $danger_max
     })
-$$, $1) as (v agtype);
+$$::cstring, $1::agtype) as (v agtype);

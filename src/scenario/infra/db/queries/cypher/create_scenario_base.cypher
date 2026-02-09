@@ -1,4 +1,4 @@
-SELECT * FROM cypher('scenario_graph', $$
+SELECT * FROM cypher('scenario_graph'::name, $$
     CREATE (s:Scenario {
         id: $scenario_id,
         title: $title,
@@ -11,4 +11,4 @@ SELECT * FROM cypher('scenario_graph', $$
         total_acts: $total_acts
     })
     RETURN s.id
-$$, $1) as (id agtype);
+$$::cstring, $1::agtype) as (id agtype);

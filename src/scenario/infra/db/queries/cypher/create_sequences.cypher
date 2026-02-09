@@ -1,6 +1,6 @@
 -- src/scenario/infra/db/queries/cypher/create_sequences.cypher
 
-SELECT * FROM cypher('scenario_graph', $$
+SELECT * FROM cypher('scenario_graph'::name, $$
     MATCH (s:Scenario {id: $scenario_id})-[:HAS_ACT]->(act_node:Act {id: $act_id})
     UNWIND $sequences as seq_item
     CREATE (seq_node:Sequence {
@@ -16,4 +16,4 @@ SELECT * FROM cypher('scenario_graph', $$
     })
     CREATE (act_node)-[:HAS_SEQUENCE]->(seq_node)
     CREATE (seq_node)-[:LOCATED_AT]->(loc_node)
-$$, $1) as (v agtype);
+$$::cstring, $1::agtype) as (v agtype);

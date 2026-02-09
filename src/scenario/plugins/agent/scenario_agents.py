@@ -1,6 +1,7 @@
 from typing import Any, Dict
 
 from langchain_core.messages import HumanMessage, SystemMessage
+import json
 
 from scenario.core.models.generation import PlannerOutput, ReviewerOutput, WriterOutput
 from scenario.infra.db.prompt_loader import PromptLoader
@@ -17,9 +18,13 @@ class BaseScenarioAgent(ScenarioAgent):
         self.structured_llm = llm.with_structured_output(output_schema)
 
     async def run(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        # LLMs are more reliable with explicit JSON than Python dict repr.
+        payload_text = json.dumps(
+            input_data, ensure_ascii=False, indent=2, default=str
+        )
         messages = [
             SystemMessage(content=self.system_message),
-            HumanMessage(content=f"Current Progress/Data: {input_data}"),
+            HumanMessage(content=f"INPUT_JSON:\n{payload_text}"),
         ]
         response = await self.structured_llm.ainvoke(messages)
         return response.model_dump()

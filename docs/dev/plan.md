@@ -20,6 +20,7 @@
 | AGENT-01  | Multi-Agent Setup                                     | Planner, Writer, Reviewer 에이전트 | done   |
 | TEST-01   | Test Suite                                            | Unit & Integration & E2E 테스트    | done   |
 | plan_0001 | GPT 모델 생성 확인 및 scripts/test_generation.py 검증 | docs/dev/detail/plan_0001.md       | done   |
+| plan_0002 | 생성-주입 정합성 회귀 테스트 베이스 구축              | docs/dev/detail/plan_0002.md       | doing  |
 
 <!-- PROJ_DASHBOARD_END -->
 
@@ -27,5 +28,6 @@
 
 ## TODO (Undone detail plans)
 
-- [ ] docs/dev/detail/plan_0001.md
+- [x] docs/dev/detail/plan_0001.md
+- [ ] docs/dev/detail/plan_0002.md
 <!-- PROJ_TODO_END -->

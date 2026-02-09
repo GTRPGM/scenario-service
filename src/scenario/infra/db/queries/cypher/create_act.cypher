@@ -1,5 +1,5 @@
 -- src/scenario/infra/db/queries/cypher/create_act.cypher
-SELECT * FROM cypher('scenario_graph', $$
+SELECT * FROM cypher('scenario_graph'::name, $$
     MATCH (scenario_node:Scenario)
     WHERE scenario_node.id = $scenario_id
     CREATE (scenario_node)-[:HAS_ACT]->(act_node:Act {
@@ -10,4 +10,4 @@ SELECT * FROM cypher('scenario_graph', $$
         goal: $goal,
         exit_criteria: $exit_criteria
     })
-$$, $1) as (v agtype);
+$$::cstring, $1::agtype) as (v agtype);

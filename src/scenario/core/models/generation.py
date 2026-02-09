@@ -246,14 +246,17 @@ class PlannerOutput(BaseModel):
     description: str
     difficulty: str = "normal"
     genre: str = "fantasy"
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
     total_acts: int
     acts: List[ActPlan]
-    item_manifest: List[EntityPlan] = []
-    npc_manifest: List[EntityPlan] = []
-    enemy_manifest: List[EntityPlan] = []
+    item_manifest: List[EntityPlan] = Field(default_factory=list)
+    npc_manifest: List[EntityPlan] = Field(default_factory=list)
+    enemy_manifest: List[EntityPlan] = Field(default_factory=list)
     total_summary: str
-    relations: List[ScenarioInjectRelation] = []
+    relations: List[ScenarioInjectRelation] = Field(default_factory=list)
+
+    # Intentionally no legacy-key normalization:
+    # planner must output clean schema; if it doesn't, generation should fail fast.
 
 
 class AssetWriterOutput(BaseModel):
@@ -279,9 +282,9 @@ class SequenceWriteDetail(BaseModel):
     description: str
     goal: str
     exit_triggers: List[str]
-    npcs: List[str]
-    enemies: List[str]
-    items: List[str]
+    npcs: List[str] = Field(default_factory=list)
+    enemies: List[str] = Field(default_factory=list)
+    items: List[str] = Field(default_factory=list)
 
 
 class WriterOutput(BaseModel):
