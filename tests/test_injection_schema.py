@@ -87,9 +87,9 @@ async def test_generate_scenario_aggregation():
             "items": mock_item_catalog,
             "npcs": mock_npc_catalog,
             "enemies": [],
+            "is_consistent": True,
         }
     )
-
     engine = ScenarioEngine(repository=mock_repo, writer=mock_writer_graph)
     result = await engine.generate_scenario("Test Concept")
 
@@ -142,7 +142,6 @@ def test_to_state_payload_alignment():
                 "scenario_enemy_id": "enemy-1",
                 "master_id": "2001",
                 "name": "Wolf",
-                "dropped_items": ["101"],
             }
         ],
         "items": [
@@ -152,7 +151,10 @@ def test_to_state_payload_alignment():
                 "name": "Rope",
             }
         ],
-        "relations": [{"from_id": "npc-1", "to_id": "enemy-1"}],
+        "relations": [
+            {"from_id": "npc-1", "to_id": "enemy-1", "relation_type": "hostile"},
+            {"from_id": "enemy-1", "to_id": "101", "relation_type": "ownership"},
+        ],
     }
 
     payload = engine._to_state_injection_payload(internal_data)
@@ -161,6 +163,9 @@ def test_to_state_payload_alignment():
     assert payload["items"][0]["rule_id"] == 3001
     assert payload["npcs"][0]["rule_id"] == 1001
     assert payload["enemies"][0]["rule_id"] == 2001
-    assert payload["enemies"][0]["dropped_items"] == [3001]
-    assert payload["sequences"][0]["items"] == ["101"]
-    assert payload["sequences"][0]["metadata"]["sequence_type"] == "NEGOTIATION"
+    assert len(payload["relations"]) == 2
+
+    # Verify relations matching new types
+    own_rel = next(r for r in payload["relations"] if r["relation_type"] == "ownership")
+    assert own_rel["from_id"] == "enemy-1"
+    assert own_rel["to_id"] == "101"

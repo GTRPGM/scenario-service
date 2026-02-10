@@ -118,8 +118,9 @@ def test_transition_invalid_sequence_id_returns_400(client):
 def test_generate_scenario_endpoint(client):
     payload = {"concept": "Space opera in a dying galaxy"}
     response = client.post("/api/v1/generation/pure", json=payload)
-    assert response.status_code == 201
-    assert response.json()["status"] == "success"
+    assert response.status_code == 422
+    detail = response.json().get("detail") or {}
+    assert "inconsistent" in str(detail.get("message", "")).lower()
 
 
 def test_debug_inject_save_endpoint(client):

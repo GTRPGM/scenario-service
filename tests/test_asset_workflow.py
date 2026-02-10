@@ -37,9 +37,11 @@ async def test_full_asset_workflow_aggregation():
         ],
         "item_manifest": [{"id": "1001", "name": "Item", "concept": "C"}],
         "npc_manifest": [{"id": "npc-1", "name": "NPC", "concept": "C"}],
-        "enemy_manifest": [{"id": "enemy-1", "name": "Enemy", "concept": "C"}],
+        "enemy_manifest": [{"id": "enemy-2", "name": "Enemy", "concept": "C"}],
         "total_summary": "Summary",
-        "relations": [],
+        "relations": [
+            {"from_id": "enemy-2", "to_id": "1001", "relation_type": "ownership"}
+        ],
     }
 
     mock_items = [
@@ -62,7 +64,7 @@ async def test_full_asset_workflow_aggregation():
     ]
     mock_enemies = [
         {
-            "scenario_enemy_id": "enemy-1",
+            "scenario_enemy_id": "enemy-2",
             "name": "Skeleton",
             "description": "D",
             "tags": [],
@@ -84,7 +86,7 @@ async def test_full_asset_workflow_aggregation():
                 "goal": "G",
                 "exit_triggers": [],
                 "npcs": ["npc-1"],
-                "enemies": ["enemy-1"],
+                "enemies": ["enemy-2"],
                 "items": ["1001"],
             }
         ]
@@ -98,9 +100,9 @@ async def test_full_asset_workflow_aggregation():
             "npcs": mock_npcs,
             "enemies": mock_enemies,
             "content": mock_content,
+            "is_consistent": True,
         }
     )
-
     engine = ScenarioEngine(repository=mock_repo, writer=mock_writer_graph)
     result = await engine.generate_scenario("Concept")
 
@@ -123,8 +125,14 @@ async def test_full_asset_workflow_aggregation():
     assert enemy["name"] == "Skeleton"
     # No rule_id/master_id provided in mock_enemies, normalized to 0
     assert enemy["rule_id"] == 0
-    # Dropped items mapping: item-101 exists in catalog, so it should be mapped
-    assert enemy["dropped_items"] == ["101"]
+
+    # Verify relations instead of dropped_items field
+    drop_rel = next(
+        r
+        for r in data["relations"]
+        if r["from_id"] == "enemy-1" and r["to_id"] == "101"
+    )
+    assert drop_rel["relation_type"] == "ownership"
 
 
 @pytest.mark.asyncio

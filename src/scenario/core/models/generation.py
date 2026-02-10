@@ -96,7 +96,6 @@ class ScenarioInjectEnemy(BaseModel):
     description: str = ""
     tags: List[str] = Field(default_factory=list)
     state: Dict[str, Any] = Field(default_factory=dict)
-    dropped_items: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
@@ -265,9 +264,19 @@ class AssetWriterOutput(BaseModel):
     enemies: List[Dict[str, Any]] = []
 
 
+class Defect(BaseModel):
+    id: str = Field(description="결함이 발견된 대상의 ID (예: act-1, seq-2, npc-1 등)")
+    field: str = Field(
+        description="문제가 된 필드명 (예: description, exit_triggers, goal 등)"
+    )
+    reason: str = Field(description="반려 사유")
+    suggestion: str = Field(description="수정 방향 제안")
+
+
 class ReviewerOutput(BaseModel):
     is_consistent: bool
-    reviews: List[str]
+    defects: List[Defect] = Field(default_factory=list)
+    reviews: List[str] = Field(default_factory=list, description="전체적인 총평")
 
 
 class SequenceWriteDetail(BaseModel):
@@ -289,6 +298,7 @@ class SequenceWriteDetail(BaseModel):
 
 class WriterOutput(BaseModel):
     sequences: List[SequenceWriteDetail]
+    relations: List[ScenarioInjectRelation] = Field(default_factory=list)
 
 
 class ValidationOutput(BaseModel):

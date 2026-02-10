@@ -1,7 +1,7 @@
+import json
 from typing import Any, Dict
 
 from langchain_core.messages import HumanMessage, SystemMessage
-import json
 
 from scenario.core.models.generation import PlannerOutput, ReviewerOutput, WriterOutput
 from scenario.infra.db.prompt_loader import PromptLoader
@@ -18,16 +18,21 @@ class BaseScenarioAgent(ScenarioAgent):
         self.structured_llm = llm.with_structured_output(output_schema)
 
     async def run(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        # LLMs are more reliable with explicit JSON than Python dict repr.
-        payload_text = json.dumps(
-            input_data, ensure_ascii=False, indent=2, default=str
-        )
+        payload_text = json.dumps(input_data, ensure_ascii=False, indent=2, default=str)
         messages = [
             SystemMessage(content=self.system_message),
-            HumanMessage(content=f"INPUT_JSON:\n{payload_text}"),
+            HumanMessage(
+                content=f"다음 입력 데이터를 바탕으로 지정된 스키마에 맞춰 결과를 생성하십시오.\n\nINPUT_DATA:\n{payload_text}"
+            ),
         ]
+
+        # Invoke LLM with structured output
         response = await self.structured_llm.ainvoke(messages)
-        return response.model_dump()
+
+        # If response is a Pydantic model instance, dump it to dict
+        if hasattr(response, "model_dump"):
+            return response.model_dump()
+        return response if isinstance(response, dict) else {}
 
 
 class PlannerAgent(BaseScenarioAgent):
@@ -40,6 +45,17 @@ class WriterAgent(BaseScenarioAgent):
         super().__init__(llm, loader, "writer", WriterOutput)
 
 
+class RelationAgent(BaseScenarioAgent):
+    def __init__(self, llm: LLMPort, loader: PromptLoader):
+        from scenario.core.models.generation import (
+            PlannerOutput,  # Reuse PlannerOutput or separate schema?
+        )
+
+        # Actually, let's just use PlannerOutput's relations structure or create a small specific one.
+        # For simplicity and robust parsing, let's use PlannerOutput which has relations.
+        super().__init__(llm, loader, "relation_manager", PlannerOutput)
+
+
 class AssetWriterAgent(BaseScenarioAgent):
     def __init__(self, llm: LLMPort, loader: PromptLoader):
         from scenario.core.models.generation import AssetWriterOutput
@@ -50,6 +66,21 @@ class AssetWriterAgent(BaseScenarioAgent):
 class ReviewerAgent(BaseScenarioAgent):
     def __init__(self, llm: LLMPort, loader: PromptLoader):
         super().__init__(llm, loader, "reviewer", ReviewerOutput)
+
+
+class PlanReviewerAgent(BaseScenarioAgent):
+    def __init__(self, llm: LLMPort, loader: PromptLoader):
+        super().__init__(llm, loader, "plan_reviewer", ReviewerOutput)
+
+
+class AssetReviewerAgent(BaseScenarioAgent):
+    def __init__(self, llm: LLMPort, loader: PromptLoader):
+        super().__init__(llm, loader, "asset_reviewer", ReviewerOutput)
+
+
+class WriterReviewerAgent(BaseScenarioAgent):
+    def __init__(self, llm: LLMPort, loader: PromptLoader):
+        super().__init__(llm, loader, "writer_reviewer", ReviewerOutput)
 
 
 class ValidatorAgent(BaseScenarioAgent):

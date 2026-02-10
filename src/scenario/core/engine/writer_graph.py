@@ -19,8 +19,15 @@ class AgentState(TypedDict):
 
     content: Dict[str, Any]  # Sequence details (references IDs)
     reviews: List[str]
+    defects: List[Dict[str, Any]]  # Structured defects
     is_consistent: bool
     iterations: Annotated[int, operator.add]
+
+    # Stage results
+    plan_consistent: bool
+    asset_consistent: bool
+    writer_consistent: bool
+    failed_asset_ids: List[str]
 
 
 class ScenarioWriterGraph:
@@ -30,402 +37,446 @@ class ScenarioWriterGraph:
         writer: ScenarioAgent,
         reviewer: ScenarioAgent,
         asset_writer: Optional[ScenarioAgent] = None,
+        relation_manager: Optional[ScenarioAgent] = None,
+        plan_reviewer: Optional[ScenarioAgent] = None,
+        asset_reviewer: Optional[ScenarioAgent] = None,
+        writer_reviewer: Optional[ScenarioAgent] = None,
         rule_engine: Optional[RuleEngineRepository] = None,
     ):
         self.planner = planner
         self.asset_writer = asset_writer
+        self.relation_manager = relation_manager
         self.writer = writer
         self.reviewer = reviewer
+        self.plan_reviewer = plan_reviewer
+        self.asset_reviewer = asset_reviewer
+        self.writer_reviewer = writer_reviewer
         self.rule_engine = rule_engine
         self.workflow = self._create_workflow()
 
     def _create_workflow(self) -> Any:
         graph = StateGraph(AgentState)
 
+        # Nodes
         graph.add_node("planner", self._planner_node)
+        graph.add_node("plan_reviewer", self._plan_reviewer_node)
+
+        graph.add_node("writer", self._writer_node)
+        graph.add_node("writer_reviewer", self._writer_reviewer_node)
+
+        if self.relation_manager:
+            graph.add_node("relation_manager", self._relation_manager_node)
+
         if self.asset_writer:
             graph.add_node("asset_writer", self._asset_writer_node)
-        graph.add_node("writer", self._writer_node)
+            graph.add_node("asset_reviewer", self._asset_reviewer_node)
+
         graph.add_node("grounder", self._grounder_node)
         graph.add_node("reviewer", self._reviewer_node)
 
+        # Edges
         graph.set_entry_point("planner")
 
+        # Stage 1: Planning
+        graph.add_edge("planner", "plan_reviewer")
+        graph.add_conditional_edges(
+            "plan_reviewer",
+            self._should_continue_plan,
+            {"continue": "planner", "next": "writer", "end": END},
+        )
+
+        # Stage 2: Writing Sequences
+        graph.add_edge("writer", "writer_reviewer")
+        graph.add_conditional_edges(
+            "writer_reviewer",
+            self._should_continue_writer,
+            {
+                "continue": "writer",
+                "next": "relation_manager"
+                if self.relation_manager
+                else ("asset_writer" if self.asset_writer else "grounder"),
+                "end": END,
+            },
+        )
+
+        # Stage 3: Relation Management
+        if self.relation_manager:
+            graph.add_edge(
+                "relation_manager", "asset_writer" if self.asset_writer else "grounder"
+            )
+
+        # Stage 4: Assets
         if self.asset_writer:
-            graph.add_edge("planner", "asset_writer")
-            graph.add_edge("asset_writer", "writer")
-        else:
-            graph.add_edge("planner", "writer")
+            graph.add_edge("asset_writer", "asset_reviewer")
+            graph.add_conditional_edges(
+                "asset_reviewer",
+                self._should_continue_asset,
+                {"continue": "asset_writer", "next": "grounder", "end": END},
+            )
 
-        graph.add_edge("writer", "grounder")
+        # Final Stage
         graph.add_edge("grounder", "reviewer")
-
         graph.add_conditional_edges(
             "reviewer",
-            self._should_continue,
+            self._should_continue_global,
             {"continue": "planner", "end": END},
         )
+
         return graph.compile()
 
     async def _planner_node(self, state: AgentState) -> Dict:
-        print("📍 [Graph] Running Planner...")
+        print(f"📍 [Planner] Running... (Total Iter: {state.get('iterations', 0)})")
         current_plan = state.get("plan") or {}
-        current_content = state.get("content") or {}
+        defects = state.get("defects", [])
 
-        def _plan_outline(plan: Dict[str, Any]) -> Dict[str, Any]:
-            if not isinstance(plan, dict):
-                return {}
-            acts = plan.get("acts") or []
-            outline_acts = []
-            for a in acts if isinstance(acts, list) else []:
-                if not isinstance(a, dict):
-                    continue
-                outline_acts.append(
-                    {
-                        "id": a.get("id"),
-                        "name": a.get("name"),
-                        "sequences": a.get("sequences") or [],
-                        "goal": a.get("goal"),
-                        "exit_criteria": a.get("exit_criteria"),
-                    }
-                )
-            return {
-                "title": plan.get("title"),
-                "difficulty": plan.get("difficulty"),
-                "genre": plan.get("genre"),
-                "total_acts": plan.get("total_acts"),
-                "acts": outline_acts,
-                "npc_ids": [
-                    n.get("id")
-                    for n in (plan.get("npc_manifest") or [])
-                    if isinstance(n, dict)
-                ],
-                "enemy_ids": [
-                    e.get("id")
-                    for e in (plan.get("enemy_manifest") or [])
-                    if isinstance(e, dict)
-                ],
-                "item_ids": [
-                    i.get("id")
-                    for i in (plan.get("item_manifest") or [])
-                    if isinstance(i, dict)
-                ],
-            }
-
-        def _content_outline(content: Dict[str, Any]) -> Dict[str, Any]:
-            if not isinstance(content, dict):
-                return {}
-            seqs = content.get("sequences") or []
-            out = []
-            for s in seqs if isinstance(seqs, list) else []:
-                if not isinstance(s, dict):
-                    continue
-                out.append(
-                    {
-                        "id": s.get("id"),
-                        "sequence_type": s.get("sequence_type"),
-                        "npcs": len(s.get("npcs") or [])
-                        if isinstance(s.get("npcs"), list)
-                        else None,
-                        "enemies": len(s.get("enemies") or [])
-                        if isinstance(s.get("enemies"), list)
-                        else None,
-                        "items": len(s.get("items") or [])
-                        if isinstance(s.get("items"), list)
-                        else None,
-                        "exit_triggers": len(s.get("exit_triggers") or [])
-                        if isinstance(s.get("exit_triggers"), list)
-                        else None,
-                    }
-                )
-            return {"sequences": out}
-
+        # 필터링: 결함이 있는 필드나 엔티티만 수정 대상으로 LLM에 전달
         input_data = {
             "concept": state["concept"],
             "assets": state.get("assets", {}),
-            "current_plan_outline": _plan_outline(current_plan),
-            "current_content_outline": _content_outline(current_content),
-            "previous_reviews": state.get("reviews", []),
+            "current_plan": current_plan if current_plan else None,
+            "previous_defects": defects,
             "iteration": state.get("iterations", 0) + 1,
         }
         result = await self.planner.run(input_data)
 
-        # Minimal deterministic fixes: avoid blank exit_criteria.
-        try:
-            if isinstance(result, dict):
-                for act in result.get("acts") or []:
-                    if not isinstance(act, dict):
-                        continue
-                    if not str(act.get("exit_criteria") or "").strip():
-                        goal = str(act.get("goal") or "").strip()
-                        act["exit_criteria"] = (
-                            f"{goal}을(를) 달성하고 다음 구역으로 이동한다."
-                            if goal
-                            else "현재 액트의 목표를 달성하고 다음 구역으로 이동한다."
-                        )
-        except Exception:
-            pass
+        # 병합 로직: LLM이 보낸 부분 데이터를 기존 플랜에 병합
+        new_plan = current_plan.copy() if current_plan else {}
+        if isinstance(result, dict):
+            for k, v in result.items():
+                if isinstance(v, list) and k in [
+                    "acts",
+                    "npc_manifest",
+                    "enemy_manifest",
+                    "item_manifest",
+                    "relations",
+                ]:
+                    # 리스트 타입(엔티티 등)은 ID 기반 병합
+                    existing_items = {
+                        str(item.get("id")): item for item in new_plan.get(k, [])
+                    }
+                    for item in v:
+                        iid = str(item.get("id"))
+                        if iid:
+                            existing_items[iid] = item
+                    new_plan[k] = list(existing_items.values())
+                else:
+                    # 단일 필드(title, description 등)는 덮어쓰기
+                    new_plan[k] = v
 
-        print("📍 [Graph] Planner complete.")
-        return {"plan": result, "iterations": 1}
-
-    async def _asset_writer_node(self, state: AgentState) -> Dict:
-        if not self.asset_writer:
-            return {"items": [], "npcs": [], "enemies": []}
-
-        print("📍 [Graph] Running Asset Writer...")
-        plan = state["plan"]
-        result = await self.asset_writer.run(
-            {
-                "item_manifest": plan.get("item_manifest", []),
-                "npc_manifest": plan.get("npc_manifest", []),
-                "enemy_manifest": plan.get("enemy_manifest", []),
-            }
-        )
-        print("📍 [Graph] Asset Writer complete.")
-        return {
-            "items": result.get("items", []),
-            "npcs": result.get("npcs", []),
-            "enemies": result.get("enemies", []),
-        }
+        return {"plan": new_plan, "iterations": 1}
 
     async def _writer_node(self, state: AgentState) -> Dict:
-        print("📍 [Graph] Running Sequence Writer...")
-        # Pass the entire catalog to the sequence writer
+        print(
+            f"📍 [Sequence Writer] Running... (Total Iter: {state.get('iterations', 0)})"
+        )
+        current_content = state.get("content") or {}
+        defects = [d for d in state.get("defects", []) if "seq-" in str(d.get("id"))]
+
         result = await self.writer.run(
             {
                 "plan": state["plan"],
-                "previous_content": state.get("content", {}),
-                "previous_reviews": state.get("reviews", []),
+                "previous_content": current_content,
+                "previous_defects": defects,
                 "items": state.get("items", []),
                 "npcs": state.get("npcs", []),
                 "enemies": state.get("enemies", []),
                 "assets": state.get("assets", {}),
             }
         )
-        # Enforce minimal entity placement to keep state-manager scenarios usable.
-        # The writer sometimes omits npcs/enemies on late sequences even when manifests exist.
+
+        # 시퀀스 병합 로직
+        new_sequences = {
+            str(s.get("id")): s for s in current_content.get("sequences", [])
+        }
+        if isinstance(result.get("sequences"), list):
+            for s in result["sequences"]:
+                sid = str(s.get("id"))
+                if sid:
+                    new_sequences[sid] = s
+
+        # 관계 제안 병합
+        all_relations = (state["plan"].get("relations") or []) + (
+            result.get("relations") or []
+        )
+        state["plan"]["relations"] = all_relations
+
+        return {"content": {"sequences": list(new_sequences.values())}, "iterations": 1}
+
+    async def _relation_manager_node(self, state: AgentState) -> Dict:
+        print("📍 [Relation Manager] Consolidating Relations...")
+        plan = state.get("plan") or {}
+        content = state.get("content") or {}
+        defects = [d for d in state.get("defects", []) if d.get("field") == "relations"]
+
+        # 문맥 필터링: 결함이 있는 관계와 관련된 시퀀스/엔티티만 추출
+        relevant_seq_ids = set()
+        if defects:
+            for d in defects:
+                # 결함이 발생한 엔티티 ID가 포함된 시퀀스 찾기
+                target_id = str(d.get("id"))
+                for s in content.get("sequences", []):
+                    if target_id in (
+                        s.get("npcs", []) + s.get("enemies", []) + s.get("items", [])
+                    ):
+                        relevant_seq_ids.add(s["id"])
+
+        filtered_sequences = [
+            s
+            for s in content.get("sequences", [])
+            if not relevant_seq_ids or s["id"] in relevant_seq_ids
+        ]
+
+        input_data = {
+            "plan": plan,
+            "sequences": filtered_sequences,
+            "draft_relations": plan.get("relations") or [],
+            "npcs": plan.get("npc_manifest", []),
+            "enemies": plan.get("enemy_manifest", []),
+            "items": plan.get("item_manifest", []),
+            "defects": defects,
+        }
+
+        result = await self.relation_manager.run(input_data)
+        plan["relations"] = result.get("relations", [])
+        return {"plan": plan}
+
+    async def _asset_writer_node(self, state: AgentState) -> Dict:
+        print(
+            f"📍 [Asset Writer] Running... (Total Iter: {state.get('iterations', 0)})"
+        )
+        plan = state["plan"]
+        content = state.get("content", {})
+        defects = state.get("defects", [])
+        failed_ids = set(state.get("failed_asset_ids", []))
+
+        npc_m = plan.get("npc_manifest", [])
+        enemy_m = plan.get("enemy_manifest", [])
+        item_m = plan.get("item_manifest", [])
+
+        # 문맥 필터링: 수정이 필요한 엔티티와 관련된 시퀀스 및 관계만 추출
+        relevant_ids = (
+            failed_ids
+            if failed_ids
+            else {str(m["id"]) for m in (npc_m + enemy_m + item_m)}
+        )
+        filtered_sequences = [
+            s
+            for s in content.get("sequences", [])
+            if any(
+                rid in (s.get("npcs", []) + s.get("enemies", []) + s.get("items", []))
+                for rid in relevant_ids
+            )
+        ]
+        filtered_relations = [
+            r
+            for r in plan.get("relations", [])
+            if str(r.get("from_id")) in relevant_ids
+            or str(r.get("to_id")) in relevant_ids
+        ]
+
+        if failed_ids:
+            npc_m = [m for m in npc_m if str(m.get("id")) in failed_ids]
+            enemy_m = [m for m in enemy_m if str(m.get("id")) in failed_ids]
+            item_m = [m for m in item_m if str(m.get("id")) in failed_ids]
+
+        result = await self.asset_writer.run(
+            {
+                "context_plan": plan,
+                "associated_sequences": filtered_sequences,
+                "associated_relations": filtered_relations,
+                "item_manifest": item_m,
+                "npc_manifest": npc_m,
+                "enemy_manifest": enemy_m,
+                "current_catalog": {
+                    "items": state.get("items", []),
+                    "npcs": state.get("npcs", []),
+                    "enemies": state.get("enemies", []),
+                },
+                "previous_defects": defects,
+            }
+        )
+
+        def merge(existing: List[Dict], new: List[Dict], key: str) -> List[Dict]:
+            merged_map = {str(e.get(key)): e for e in existing if e.get(key)}
+            for n in new:
+                nid = str(n.get(key))
+                if nid:
+                    merged_map[nid] = n
+            return list(merged_map.values())
+
+        return {
+            "items": merge(state.get("items", []), result.get("items", []), "item_id"),
+            "npcs": merge(
+                state.get("npcs", []), result.get("npcs", []), "scenario_npc_id"
+            ),
+            "enemies": merge(
+                state.get("enemies", []), result.get("enemies", []), "scenario_enemy_id"
+            ),
+            "iterations": 1,
+        }
+
+    async def _asset_reviewer_node(self, state: AgentState) -> Dict:
+        print("🔎 [Reviewer] Inspecting Assets...")
+        if not self.asset_reviewer:
+            return {"asset_consistent": True, "failed_asset_ids": []}
+        result = await self.asset_reviewer.run(
+            {
+                "plan": state["plan"],
+                "items": state["items"],
+                "npcs": state["npcs"],
+                "enemies": state["enemies"],
+            }
+        )
+        is_consistent = bool(result.get("is_consistent"))
+        reviews = result.get("reviews", [])
+        defects = result.get("defects", [])
+        failed_ids = (
+            [d.get("id") for d in defects if d.get("id")] if not is_consistent else []
+        )
+        if not is_consistent:
+            print(f"❌ [Reviewer] Assets Rejected. Defects: {defects}")
+        else:
+            print("✅ [Reviewer] Assets Passed.")
+        return {
+            "asset_consistent": is_consistent,
+            "reviews": reviews,
+            "defects": defects,
+            "failed_asset_ids": failed_ids,
+        }
+
+    async def _writer_node(self, state: AgentState) -> Dict:
+        print(
+            f"📍 [Sequence Writer] Running... (Total Iter: {state.get('iterations', 0)})"
+        )
+        result = await self.writer.run(
+            {
+                "plan": state["plan"],
+                "previous_content": state.get("content", {}),
+                "previous_reviews": state.get("reviews", []),
+                "previous_defects": state.get("defects", []),
+                "items": state.get("items", []),
+                "npcs": state.get("npcs", []),
+                "enemies": state.get("enemies", []),
+                "assets": state.get("assets", {}),
+            }
+        )
         try:
             plan = state.get("plan") or {}
-            npc_ids = [
-                str(n.get("id")).strip()
-                for n in (plan.get("npc_manifest") or [])
-                if isinstance(n, dict) and str(n.get("id") or "").strip()
-            ]
-            enemy_ids = [
-                str(e.get("id")).strip()
-                for e in (plan.get("enemy_manifest") or [])
-                if isinstance(e, dict) and str(e.get("id") or "").strip()
-            ]
-            item_ids = [
-                str(i.get("id")).strip()
-                for i in (plan.get("item_manifest") or [])
-                if isinstance(i, dict) and str(i.get("id") or "").strip()
-            ]
-            sequences = result.get("sequences") if isinstance(result, dict) else None
-            if isinstance(sequences, list) and (npc_ids or enemy_ids or item_ids):
-                default_npc = npc_ids[0] if npc_ids else None
-                default_enemy = enemy_ids[0] if enemy_ids else None
-                default_item = item_ids[0] if item_ids else None
-
-                for seq in sequences:
-                    if not isinstance(seq, dict):
-                        continue
-
-                    npcs = seq.get("npcs")
-                    enemies = seq.get("enemies")
-                    items = seq.get("items")
-                    if not isinstance(npcs, list):
-                        npcs = []
-                    if not isinstance(enemies, list):
-                        enemies = []
-                    if not isinstance(items, list):
-                        items = []
-
-                    npcs = [str(x).strip() for x in npcs if str(x).strip()]
-                    enemies = [str(x).strip() for x in enemies if str(x).strip()]
-                    items = [str(x).strip() for x in items if str(x).strip()]
-
-                    seq_type = str(seq.get("sequence_type") or "").strip().lower()
-
-                    # Always ensure at least 1 NPC if available.
-                    if default_npc and not npcs:
-                        npcs = [default_npc]
-
-                    # Combat must include at least 1 enemy if available.
-                    if default_enemy and "combat" in seq_type and not enemies:
-                        enemies = [default_enemy]
-
-                    # Ensure total entities >= 2 when possible.
-                    total = len(npcs) + len(enemies)
-                    if total < 2:
-                        if default_enemy and default_enemy not in enemies:
-                            enemies.append(default_enemy)
-                        elif default_npc and default_npc not in npcs:
-                            npcs.append(default_npc)
-
-                    # Exploration/Puzzle should include at least 1 item if available.
-                    if default_item and not items and (
-                        "exploration" in seq_type or "puzzle" in seq_type
-                    ):
-                        items = [default_item]
-
-                    seq["npcs"] = npcs
-                    seq["enemies"] = enemies
-                    seq["items"] = items
-        except Exception:
-            # Best-effort normalization; keep raw result if anything goes wrong.
+            npc_ids = [str(n.get("id")) for n in plan.get("npc_manifest", [])]
+            enemy_ids = [str(e.get("id")) for e in plan.get("enemy_manifest", [])]
+            item_ids = [str(i.get("id")) for i in plan.get("item_manifest", [])]
+            if isinstance(result.get("sequences"), list):
+                d_npc, d_enemy, d_item = (
+                    (npc_ids[0] if npc_ids else None),
+                    (enemy_ids[0] if enemy_ids else None),
+                    (item_ids[0] if item_ids else None),
+                )
+                for s in result["sequences"]:
+                    n, e, i = (
+                        [str(x) for x in (s.get("npcs") or [])],
+                        [str(x) for x in (s.get("enemies") or [])],
+                        [str(x) for x in (s.get("items") or [])],
+                    )
+                    if (len(n) + len(e) + len(i)) < 2:
+                        if d_npc and d_npc not in n:
+                            n.append(d_npc)
+                        if (
+                            (len(n) + len(e) + len(i)) < 2
+                            and d_enemy
+                            and d_enemy not in e
+                        ):
+                            e.append(d_enemy)
+                    s["npcs"], s["enemies"], s["items"] = n, e, i
+        except:
             pass
+        return {"content": result, "iterations": 1}
 
-        print("📍 [Graph] Sequence Writer complete.")
-        return {"content": result}
+    async def _writer_reviewer_node(self, state: AgentState) -> Dict:
+        print("🔎 [Reviewer] Inspecting Sequences...")
+        if not self.writer_reviewer:
+            return {"writer_consistent": True}
+        result = await self.writer_reviewer.run(
+            {"plan": state["plan"], "content": state["content"]}
+        )
+        is_consistent = bool(result.get("is_consistent"))
+        reviews = result.get("reviews", [])
+        defects = result.get("defects", [])
+        if not is_consistent:
+            print(f"❌ [Reviewer] Sequences Rejected. Defects: {defects}")
+        else:
+            print("✅ [Reviewer] Sequences Passed.")
+        return {
+            "writer_consistent": is_consistent,
+            "reviews": reviews,
+            "defects": defects,
+        }
 
     async def _grounder_node(self, state: AgentState) -> Dict:
         return {"content": state["content"]}
 
     async def _reviewer_node(self, state: AgentState) -> Dict:
-        print("📍 [Graph] Running Reviewer...")
-        # Deterministic validation: LLM reviewer tends to hallucinate failures even when
-        # data is correct. We validate using the actual plan/content that will be
-        # packaged for state-manager injection.
-        plan = state.get("plan") or {}
-        content = state.get("content") or {}
-
-        reviews: list[str] = []
-
-        acts = plan.get("acts") if isinstance(plan, dict) else []
-        if not isinstance(acts, list) or not acts:
-            reviews.append("acts가 비어 있습니다.")
+        print("🔎 [Reviewer] Inspecting Global Consistency...")
+        result = await self.reviewer.run(
+            {"plan": state.get("plan", {}), "content": state.get("content", {})}
+        )
+        is_consistent = bool(result.get("is_consistent"))
+        reviews = result.get("reviews", [])
+        defects = result.get("defects", [])
+        if not is_consistent:
+            print(f"❌ [Reviewer] Global Consistency Rejected. Defects: {defects}")
         else:
-            for act in acts:
-                if not isinstance(act, dict):
-                    continue
-                if not str(act.get("description") or "").strip():
-                    reviews.append(f"{act.get('id')} description 누락")
-                if not str(act.get("goal") or "").strip():
-                    reviews.append(f"{act.get('id')} goal 누락")
-                if not str(act.get("exit_criteria") or "").strip():
-                    reviews.append(f"{act.get('id')} exit_criteria 누락")
-                seqs = act.get("sequences")
-                if not isinstance(seqs, list) or not seqs:
-                    reviews.append(f"{act.get('id')} sequences 누락")
+            print("✅ [Reviewer] Global Consistency Passed.")
+        return {
+            "is_consistent": is_consistent,
+            "reviews": reviews,
+            "defects": defects,
+            "iterations": 1,
+        }
 
-        npc_ids = [
-            str(n.get("id"))
-            for n in (plan.get("npc_manifest") or [])
-            if isinstance(n, dict) and n.get("id")
-        ]
-        enemy_ids = [
-            str(e.get("id"))
-            for e in (plan.get("enemy_manifest") or [])
-            if isinstance(e, dict) and e.get("id")
-        ]
-        item_ids = [
-            str(i.get("id"))
-            for i in (plan.get("item_manifest") or [])
-            if isinstance(i, dict) and i.get("id")
-        ]
-        if len(npc_ids) < 4:
-            reviews.append("NPC가 최소 4명 필요합니다.")
-        if len(enemy_ids) < 4:
-            reviews.append("Enemy가 최소 4종 필요합니다.")
-        if len(item_ids) < 4:
-            reviews.append("Item/Object가 최소 4종 필요합니다.")
-
-        seqs = content.get("sequences") if isinstance(content, dict) else []
-        if not isinstance(seqs, list) or not seqs:
-            reviews.append("content.sequences가 비어 있습니다.")
-        else:
-            # Coverage check: plan acts -> sequence IDs must match content sequence IDs
-            plan_seq_ids: set[str] = set()
-            for act in acts if isinstance(acts, list) else []:
-                if isinstance(act, dict):
-                    for sid in act.get("sequences") or []:
-                        if sid:
-                            plan_seq_ids.add(str(sid))
-
-            content_seq_ids: set[str] = set()
-            for s in seqs:
-                if isinstance(s, dict) and s.get("id"):
-                    content_seq_ids.add(str(s.get("id")))
-
-            missing_in_content = sorted(plan_seq_ids - content_seq_ids)
-            extra_in_content = sorted(content_seq_ids - plan_seq_ids)
-            if missing_in_content:
-                reviews.append(
-                    f"plan에 있는 시퀀스가 content에 누락: {missing_in_content}"
-                )
-            if extra_in_content:
-                reviews.append(
-                    f"content에 plan에 없는 시퀀스가 포함: {extra_in_content}"
-                )
-
-            for s in seqs:
-                if not isinstance(s, dict):
-                    continue
-                sid = s.get("id")
-                if not str(s.get("description") or "").strip():
-                    reviews.append(f"{sid} description 누락")
-                if not str(s.get("goal") or "").strip():
-                    reviews.append(f"{sid} goal 누락")
-                if not isinstance(s.get("exit_triggers"), list) or not s.get(
-                    "exit_triggers"
-                ):
-                    reviews.append(f"{sid} exit_triggers 누락")
-
-                snpcs = s.get("npcs") or []
-                senemies = s.get("enemies") or []
-                sitems = s.get("items") or []
-                if not isinstance(snpcsp:=snpcs, list):
-                    snpcsp = []
-                if not isinstance(senemies, list):
-                    senemies = []
-                if not isinstance(sitems, list):
-                    sitems = []
-
-                # Entity richness: NPC+Enemy >= 2
-                if (len(snpcsp) + len(senemies)) < 2:
-                    reviews.append(
-                        f"{sid} 엔티티 부족: NPC({len(snpcsp)})+Enemy({len(senemies)})"
-                    )
-
-                stype = str(s.get("sequence_type") or "").lower()
-                if ("exploration" in stype or "puzzle" in stype) and len(sitems) < 1:
-                    reviews.append(f"{sid} 탐험/퍼즐 시퀀스에 items 누락")
-
-                # Reference integrity (subset checks)
-                for nid in snpcsp:
-                    if str(nid) not in npc_ids:
-                        reviews.append(f"{sid} 알 수 없는 npc id 참조: {nid}")
-                for eid in senemies:
-                    if str(eid) not in enemy_ids:
-                        reviews.append(f"{sid} 알 수 없는 enemy id 참조: {eid}")
-                for iid in sitems:
-                    if str(iid) not in item_ids:
-                        reviews.append(f"{sid} 알 수 없는 item id 참조: {iid}")
-
-        is_consistent = len(reviews) == 0
-        print(f"📍 [Graph] Reviewer complete. (Consistent: {is_consistent})")
-        return {"is_consistent": is_consistent, "reviews": reviews}
-
-    def _should_continue(self, state: AgentState) -> str:
-        if state["is_consistent"]:
+    # Conditional Edges
+    def _should_continue_plan(self, state: AgentState) -> str:
+        if state["plan_consistent"]:
+            return "next"
+        if state["iterations"] >= 15:
             return "end"
-        if state["iterations"] >= 3:
+        return "continue"
+
+    def _should_continue_asset(self, state: AgentState) -> str:
+        if state["asset_consistent"]:
+            return "next"
+        if state["iterations"] >= 15:
+            return "end"
+        return "continue"
+
+    def _should_continue_writer(self, state: AgentState) -> str:
+        if state["writer_consistent"]:
+            return "next"
+        if state["iterations"] >= 15:
+            return "end"
+        return "continue"
+
+    def _should_continue_global(self, state: AgentState) -> str:
+        if state["is_consistent"] or state["iterations"] >= 15:
             return "end"
         return "continue"
 
     async def run(self, concept: str, assets: Optional[Dict] = None) -> Dict:
-        initial_state = {
-            "concept": concept,
-            "assets": assets or {},
-            "plan": {},
-            "items": [],
-            "npcs": [],
-            "enemies": [],
-            "content": {},
-            "reviews": [],
-            "is_consistent": False,
-            "iterations": 0,
-        }
-        return await self.workflow.ainvoke(initial_state)
+        return await self.workflow.ainvoke(
+            {
+                "concept": concept,
+                "assets": assets or {},
+                "plan": {},
+                "items": [],
+                "npcs": [],
+                "enemies": [],
+                "content": {},
+                "reviews": [],
+                "defects": [],
+                "is_consistent": False,
+                "iterations": 0,
+                "plan_consistent": False,
+                "asset_consistent": False,
+                "writer_consistent": False,
+                "failed_asset_ids": [],
+            }
+        )

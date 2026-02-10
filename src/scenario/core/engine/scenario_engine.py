@@ -40,7 +40,11 @@ class ScenarioEngine:
                 npc_m = plan.get("npc_manifest") or []
                 enemy_m = plan.get("enemy_manifest") or []
                 item_m = plan.get("item_manifest") or []
-                seqs = (content.get("sequences") or []) if isinstance(content, dict) else []
+                seqs = (
+                    (content.get("sequences") or [])
+                    if isinstance(content, dict)
+                    else []
+                )
                 seq_counts = []
                 for s in seqs:
                     if not isinstance(s, dict):
@@ -54,7 +58,9 @@ class ScenarioEngine:
                             "id": sid,
                             "sequence_type": s.get("sequence_type"),
                             "npcs": len(npcs) if isinstance(npcs, list) else None,
-                            "enemies": len(enemies) if isinstance(enemies, list) else None,
+                            "enemies": len(enemies)
+                            if isinstance(enemies, list)
+                            else None,
                             "items": len(items) if isinstance(items, list) else None,
                         }
                     )
@@ -69,10 +75,15 @@ class ScenarioEngine:
                     reviews,
                 )
             except Exception:
-                logger.error("Scenario generation rejected by reviewer. reviews=%s", reviews)
+                logger.error(
+                    "Scenario generation rejected by reviewer. reviews=%s", reviews
+                )
             raise HTTPException(
                 status_code=422,
-                detail={"message": "Scenario generation inconsistent", "reviews": reviews},
+                detail={
+                    "message": "Scenario generation inconsistent",
+                    "reviews": reviews,
+                },
             )
 
         scenario_data = self._package_scenario(final_state)
@@ -296,13 +307,6 @@ class ScenarioEngine:
         packaged_enemies = []
         for i, enemy in enumerate(state.get("enemies", []) or []):
             new_id = f"enemy-{i + 1}"
-            final_drops = []
-            raw_drops = enemy.get("dropped_items", []) or []
-            for d in raw_drops:
-                d_clean = clean_id(d)
-                if d_clean in item_map:
-                    final_drops.append(item_map[d_clean])
-
             packaged_enemies.append(
                 {
                     "scenario_enemy_id": new_id,
@@ -313,7 +317,6 @@ class ScenarioEngine:
                     "description": enemy.get("description", ""),
                     "tags": enemy.get("tags", []),
                     "state": enemy.get("state", {}),
-                    "dropped_items": final_drops,
                 }
             )
 
@@ -626,19 +629,6 @@ class ScenarioEngine:
             scenario_enemy_id = str(enemy.get("scenario_enemy_id", "")).strip()
             if not scenario_enemy_id:
                 continue
-            dropped_items: List[int] = []
-            for dropped in enemy.get("dropped_items", []) or []:
-                key = str(dropped).strip()
-                mapped_item_id = item_id_map.get(key) or item_id_map.get(key.lower())
-                if mapped_item_id:
-                    dropped_items.append(item_rule_map[mapped_item_id])
-                else:
-                    dropped_items.append(
-                        self._coerce_rule_id(
-                            dropped,
-                            field=f"enemy[{scenario_enemy_id}].dropped_items",
-                        )
-                    )
             state_enemies.append(
                 {
                     "scenario_enemy_id": scenario_enemy_id,
@@ -650,7 +640,6 @@ class ScenarioEngine:
                     "description": enemy.get("description", ""),
                     "tags": enemy.get("tags", []),
                     "state": enemy.get("state", {}),
-                    "dropped_items": dropped_items,
                 }
             )
 

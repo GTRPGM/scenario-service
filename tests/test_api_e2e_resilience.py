@@ -56,6 +56,7 @@ def dirty_llm_response():
                 },
             ]
         },
+        "is_consistent": True,
     }
 
 

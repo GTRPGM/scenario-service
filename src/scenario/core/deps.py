@@ -7,11 +7,15 @@ from scenario.infra.db.database import DatabaseHandler
 from scenario.infra.db.prompt_loader import PromptLoader
 from scenario.infra.db.query_loader import QueryLoader
 from scenario.plugins.agent.scenario_agents import (
+    AssetReviewerAgent,
     AssetWriterAgent,
     PlannerAgent,
+    PlanReviewerAgent,
+    RelationAgent,
     ReviewerAgent,
     ValidatorAgent,
     WriterAgent,
+    WriterReviewerAgent,
 )
 from scenario.plugins.db.adapter import PostgresScenarioAdapter
 from scenario.plugins.llm.adapter import ScenarioChatModel
@@ -37,12 +41,26 @@ async def get_scenario_engine() -> ScenarioEngine:
     # Instantiate Agents (Plugins)
     planner = PlannerAgent(llm_model, prompt_loader)
     asset_writer = AssetWriterAgent(llm_model, prompt_loader)
+    relation_manager = RelationAgent(llm_model, prompt_loader)
     writer = WriterAgent(llm_model, prompt_loader)
     reviewer = ReviewerAgent(llm_model, prompt_loader)
 
+    # Stage-Gate Reviewers
+    plan_reviewer = PlanReviewerAgent(llm_model, prompt_loader)
+    asset_reviewer = AssetReviewerAgent(llm_model, prompt_loader)
+    writer_reviewer = WriterReviewerAgent(llm_model, prompt_loader)
+
     # Create Graph (Core Engine)
     writer_graph = ScenarioWriterGraph(
-        planner, writer, reviewer, asset_writer=asset_writer, rule_engine=rule_engine
+        planner,
+        writer,
+        reviewer,
+        asset_writer=asset_writer,
+        relation_manager=relation_manager,
+        plan_reviewer=plan_reviewer,
+        asset_reviewer=asset_reviewer,
+        writer_reviewer=writer_reviewer,
+        rule_engine=rule_engine,
     )
 
     return ScenarioEngine(repository, writer_graph, rule_engine=rule_engine)

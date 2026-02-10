@@ -85,8 +85,8 @@ async def test_engine_aggregation_logic(mock_data):
         "enemies": [
             {"scenario_enemy_id": "enemy-1", "name": "E", "dropped_items": ["101"]}
         ],
+        "is_consistent": True,
     }
-
     mock_writer_graph = MagicMock(spec=ScenarioWriterGraph)
     mock_writer_graph.run = AsyncMock(return_value=full_mock_return)
 
