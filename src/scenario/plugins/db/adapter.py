@@ -735,7 +735,9 @@ class PostgresScenarioAdapter(ScenarioRepository):
     async def get_generation_run_report(self, run_id: UUID | str) -> Dict[str, Any]:
         rid = run_id if isinstance(run_id, UUID) else UUID(str(run_id))
 
-        run_row = await self.db.fetchrow(self.loader.load_sql("get_generation_run"), rid)
+        run_row = await self.db.fetchrow(
+            self.loader.load_sql("get_generation_run"), rid
+        )
         if not run_row:
             return {}
 

@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 from scenario.core.deps import (
     get_planner_agent,
     get_relation_agent,
-    get_scenario_repository,
     get_scenario_engine,
+    get_scenario_repository,
     get_writer_agent,
 )
 from scenario.core.engine.scenario_engine import ScenarioEngine
@@ -99,7 +99,9 @@ def _checkpoint_path(checkpoint_id: str) -> Path:
     return CHECKPOINT_DIR / f"{checkpoint_id}.json"
 
 
-def _save_checkpoint(stage: str, payload: Dict[str, Any], status_text: str) -> Dict[str, Any]:
+def _save_checkpoint(
+    stage: str, payload: Dict[str, Any], status_text: str
+) -> Dict[str, Any]:
     checkpoint_id = uuid.uuid4().hex[:12]
     record = {
         "checkpoint_id": checkpoint_id,
@@ -113,7 +115,11 @@ def _save_checkpoint(stage: str, payload: Dict[str, Any], status_text: str) -> D
         json.dumps(record, ensure_ascii=False, indent=2, default=str),
         encoding="utf-8",
     )
-    return {"checkpoint_id": checkpoint_id, "checkpoint_path": str(path), "record": record}
+    return {
+        "checkpoint_id": checkpoint_id,
+        "checkpoint_path": str(path),
+        "record": record,
+    }
 
 
 def _load_checkpoint(checkpoint_id: str) -> Dict[str, Any]:
@@ -178,7 +184,9 @@ async def _run_stage(
             "checkpoint_path": saved["checkpoint_path"],
             "result": result,
         }
-    except Exception as exc:  # pragma: no cover - handled by tests through response shape
+    except (
+        Exception
+    ) as exc:  # pragma: no cover - handled by tests through response shape
         status_text = "error"
         error_text = str(exc)
         saved = _save_checkpoint(
@@ -242,7 +250,9 @@ async def generate_step_planner(
     repository: Annotated[PostgresScenarioAdapter, Depends(get_scenario_repository)],
 ):
     run_id = await _ensure_run_id(repository, request.run_id, request.concept)
-    retry_count = await repository.count_generation_requests_for_stage(run_id, "planner")
+    retry_count = await repository.count_generation_requests_for_stage(
+        run_id, "planner"
+    )
     resolved_input = {
         "concept": request.concept,
         "assets": request.assets,
@@ -291,7 +301,9 @@ async def generate_step_relation(
     repository: Annotated[PostgresScenarioAdapter, Depends(get_scenario_repository)],
 ):
     run_id = await _ensure_run_id(repository, request.run_id, "step-relation")
-    retry_count = await repository.count_generation_requests_for_stage(run_id, "relation")
+    retry_count = await repository.count_generation_requests_for_stage(
+        run_id, "relation"
+    )
     plan = request.plan
     resolved_input = {
         "plan": plan,
@@ -334,7 +346,10 @@ async def continue_from_checkpoint(
     if request.next_stage == "writer":
         # planner result -> writer input
         resolved_input = {
-            "plan": overrides.get("plan") or base_result or base_input.get("plan") or {},
+            "plan": overrides.get("plan")
+            or base_result
+            or base_input.get("plan")
+            or {},
             "previous_content": overrides.get("previous_content", {}),
             "previous_defects": overrides.get("previous_defects", []),
             "previous_reviews": overrides.get("previous_reviews", []),
@@ -369,7 +384,9 @@ async def continue_from_checkpoint(
         "items": plan.get("item_manifest", []),
         "defects": overrides.get("defects", []),
     }
-    retry_count = await repository.count_generation_requests_for_stage(run_id, "relation")
+    retry_count = await repository.count_generation_requests_for_stage(
+        run_id, "relation"
+    )
     return await _run_stage(
         stage="relation",
         agent=relation_manager,

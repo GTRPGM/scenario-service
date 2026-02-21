@@ -158,7 +158,9 @@ class ScenarioWriterGraph:
         return deduped
 
     @staticmethod
-    def _stabilize_sparse_sequences(plan: Dict[str, Any], result: Dict[str, Any]) -> None:
+    def _stabilize_sparse_sequences(
+        plan: Dict[str, Any], result: Dict[str, Any]
+    ) -> None:
         """Prevent empty/sparse sequence payloads from stalling downstream reviewers."""
         npc_ids = [str(n.get("id")) for n in plan.get("npc_manifest", [])]
         enemy_ids = [str(e.get("id")) for e in plan.get("enemy_manifest", [])]
@@ -174,7 +176,11 @@ class ScenarioWriterGraph:
             if (len(npcs) + len(enemies) + len(items)) < 2:
                 if d_npc and d_npc not in npcs:
                     npcs.append(d_npc)
-                if (len(npcs) + len(enemies) + len(items)) < 2 and d_enemy and d_enemy not in enemies:
+                if (
+                    (len(npcs) + len(enemies) + len(items)) < 2
+                    and d_enemy
+                    and d_enemy not in enemies
+                ):
                     enemies.append(d_enemy)
             seq["npcs"], seq["enemies"], seq["items"] = npcs, enemies, items
 
@@ -243,7 +249,9 @@ class ScenarioWriterGraph:
         }
 
     async def _writer_node(self, state: AgentState) -> Dict:
-        print(f"📍 [Sequence Writer] Running... (Total Iter: {state.get('iterations', 0)})")
+        print(
+            f"📍 [Sequence Writer] Running... (Total Iter: {state.get('iterations', 0)})"
+        )
         current_content = state.get("content") or {}
         defects = [d for d in state.get("defects", []) if "seq-" in str(d.get("id"))]
 
@@ -265,14 +273,18 @@ class ScenarioWriterGraph:
         except Exception:
             pass
 
-        new_sequences = {str(s.get("id")): s for s in current_content.get("sequences", [])}
+        new_sequences = {
+            str(s.get("id")): s for s in current_content.get("sequences", [])
+        }
         if isinstance(result.get("sequences"), list):
             for seq in result["sequences"]:
                 sid = str(seq.get("id"))
                 if sid:
                     new_sequences[sid] = seq
 
-        all_relations = (state["plan"].get("relations") or []) + (result.get("relations") or [])
+        all_relations = (state["plan"].get("relations") or []) + (
+            result.get("relations") or []
+        )
         state["plan"]["relations"] = self._dedupe_relations(all_relations)
 
         return {"content": {"sequences": list(new_sequences.values())}, "iterations": 1}

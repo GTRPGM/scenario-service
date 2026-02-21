@@ -453,9 +453,7 @@ class ScenarioEngine:
             payload = {
                 "title": planner.get("title", "DEBUG_SCENARIO"),
                 "description": planner.get("description", ""),
-                "summary": planner.get(
-                    "total_summary", planner.get("description", "")
-                ),
+                "summary": planner.get("total_summary", planner.get("description", "")),
                 "difficulty": planner.get("difficulty", "normal"),
                 "genre": planner.get("genre", "debug"),
                 "tags": planner.get("tags", ["debug"]),
@@ -518,12 +516,8 @@ class ScenarioEngine:
                     **enemy,
                     "scenario_enemy_id": enemy_id,
                     "name": enemy.get("name", enemy_id),
-                    "description": enemy.get(
-                        "description", enemy.get("concept", "")
-                    ),
-                    "stats": enemy.get(
-                        "stats", {"hp": 10, "attack": 5, "defense": 3}
-                    ),
+                    "description": enemy.get("description", enemy.get("concept", "")),
+                    "stats": enemy.get("stats", {"hp": 10, "attack": 5, "defense": 3}),
                     "skills": enemy.get("skills", []),
                 }
             )
@@ -599,7 +593,9 @@ class ScenarioEngine:
             normalized["total_acts"] = 1
 
         self._validate_state_payload_references(normalized)
-        replace_fn = getattr(self.repository, "save_or_replace_scenario_by_concept", None)
+        replace_fn = getattr(
+            self.repository, "save_or_replace_scenario_by_concept", None
+        )
         if callable(replace_fn):
             maybe = replace_fn(concept, normalized)
             if isawaitable(maybe):

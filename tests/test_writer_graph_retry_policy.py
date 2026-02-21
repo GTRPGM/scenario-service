@@ -41,15 +41,21 @@ def test_writer_stage_falls_back_after_three_failures():
     graph = _graph()
 
     assert (
-        graph._should_continue_writer({"writer_consistent": False, "writer_attempts": 1})
+        graph._should_continue_writer(
+            {"writer_consistent": False, "writer_attempts": 1}
+        )
         == "continue"
     )
     assert (
-        graph._should_continue_writer({"writer_consistent": False, "writer_attempts": 2})
+        graph._should_continue_writer(
+            {"writer_consistent": False, "writer_attempts": 2}
+        )
         == "continue"
     )
     assert (
-        graph._should_continue_writer({"writer_consistent": False, "writer_attempts": 3})
+        graph._should_continue_writer(
+            {"writer_consistent": False, "writer_attempts": 3}
+        )
         == "end"
     )
     assert (
