@@ -301,6 +301,10 @@ class WriterOutput(BaseModel):
     relations: List[ScenarioInjectRelation] = Field(default_factory=list)
 
 
+class RelationManagerOutput(BaseModel):
+    relations: List[ScenarioInjectRelation] = Field(default_factory=list)
+
+
 class ValidationOutput(BaseModel):
     is_triggered: bool
 

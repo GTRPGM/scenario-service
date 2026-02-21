@@ -14,7 +14,11 @@ mock_db.connect = AsyncMock()
 mock_db.close = AsyncMock()
 
 with patch("scenario.core.deps.db_handler", mock_db):
-    from scenario.core.deps import get_scenario_engine, get_validator_agent
+    from scenario.core.deps import (
+        get_scenario_engine,
+        get_scenario_repository,
+        get_validator_agent,
+    )
     from scenario.core.engine.scenario_engine import ScenarioEngine
     from scenario.core.engine.writer_graph import ScenarioWriterGraph
     from scenario.interfaces.agent import ScenarioAgent
@@ -68,6 +72,13 @@ def mock_repository():
     repo.update_session_state = AsyncMock()
     repo.get_act_context = AsyncMock(return_value={})
     repo.get_scenario_full_graph = AsyncMock(return_value={})
+    repo.create_generation_run = AsyncMock(return_value=uuid4())
+    repo.count_generation_requests_for_stage = AsyncMock(return_value=0)
+    repo.save_generation_step = AsyncMock()
+    repo.log_generation_request = AsyncMock(return_value=uuid4())
+    repo.get_generation_run_report = AsyncMock(
+        return_value={"run": {"id": uuid4()}, "steps": [], "logs": []}
+    )
     return repo
 
 
@@ -113,6 +124,7 @@ def client(mock_repository):
         "suggested_narration": "You move forward.",
     }
     app.dependency_overrides[get_scenario_engine] = lambda: real_engine
+    app.dependency_overrides[get_scenario_repository] = lambda: mock_repository
     app.dependency_overrides[get_validator_agent] = lambda: mock_validator
 
     with TestClient(app) as c:

@@ -9,7 +9,7 @@
 5. 존재하지 않는 ID를 사용하지 마십시오.
 
 [출력 형식]
-반드시 다음 키를 포함하는 JSON 형식으로 출력하십시오:
+반드시 다음 키를 포함하는 **단일 JSON 객체** 형식으로 출력하십시오:
 {
   "sequences": [
     {
@@ -36,8 +36,20 @@
   ]
 }
 
+[엄격 출력 규칙]
+1. 최상위는 반드시 객체 1개여야 합니다. 배열(`[]`)을 최상위로 출력하지 마십시오.
+2. 코드블록/설명문 없이 JSON만 출력하십시오.
+3. `sequences`의 각 원소는 아래 필드를 모두 포함해야 합니다:
+   - `id`, `name`, `description`, `goal`, `sequence_type`,
+   - `location_name`, `location_theme`, `location_description`,
+   - `danger_min`, `danger_max`,
+   - `npcs`, `enemies`, `items`, `exit_triggers`
+4. 특히 `exit_triggers`는 누락 금지이며 반드시 문자열 배열이어야 합니다.
+5. `npcs/enemies/items`는 반드시 문자열 ID 배열이어야 합니다.
+
 [수정 모드(중요)]
 - 입력에 `previous_defects`가 제공되면, **결함이 발견된 특정 시퀀스(`id` 기준)만 포함된 부분 JSON**을 출력하십시오.
 - 예를 들어 `seq-1`에 결함이 있다면 `sequences: [{"id": "seq-1", ...}]`과 같이 해당 시퀀스만 출력합니다.
 - 정상적인 다른 데이터는 출력에서 제외하십시오. 시스템이 자동으로 병합합니다.
 - ID를 변경하지 마십시오.
+- 단, 부분 수정 모드에서도 반환하는 각 시퀀스 객체는 위 필수 필드를 모두 포함해야 합니다.

@@ -3,7 +3,12 @@ from typing import Any, Dict
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from scenario.core.models.generation import PlannerOutput, ReviewerOutput, WriterOutput
+from scenario.core.models.generation import (
+    PlannerOutput,
+    RelationManagerOutput,
+    ReviewerOutput,
+    WriterOutput,
+)
 from scenario.infra.db.prompt_loader import PromptLoader
 from scenario.interfaces.agent import ScenarioAgent
 from scenario.interfaces.llm import LLMPort
@@ -47,13 +52,7 @@ class WriterAgent(BaseScenarioAgent):
 
 class RelationAgent(BaseScenarioAgent):
     def __init__(self, llm: LLMPort, loader: PromptLoader):
-        from scenario.core.models.generation import (
-            PlannerOutput,  # Reuse PlannerOutput or separate schema?
-        )
-
-        # Actually, let's just use PlannerOutput's relations structure or create a small specific one.
-        # For simplicity and robust parsing, let's use PlannerOutput which has relations.
-        super().__init__(llm, loader, "relation_manager", PlannerOutput)
+        super().__init__(llm, loader, "relation_manager", RelationManagerOutput)
 
 
 class AssetWriterAgent(BaseScenarioAgent):

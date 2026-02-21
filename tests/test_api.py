@@ -175,3 +175,50 @@ def test_debug_inject_save_endpoint_state_inject_failure(client):
             "/api/v1/manage/scenarios/debug/inject-save", json=payload
         )
         assert response.status_code == 502
+
+
+def test_debug_inject_save_endpoint_accepts_step_outputs_without_payload(client):
+    payload = {
+        "planner_output": {"title": "T", "acts": []},
+        "writer_output": {"sequences": []},
+        "relation_output": {"relations": []},
+        "inject_to_state": False,
+    }
+
+    with patch(
+        "scenario.core.engine.scenario_engine.ScenarioEngine.save_and_inject_debug",
+        new_callable=AsyncMock,
+    ) as mock_debug:
+        mock_debug.return_value = {
+            "status": "success",
+            "scenario_service_id": str(uuid4()),
+            "saved": True,
+            "injected": False,
+        }
+        response = client.post(
+            "/api/v1/manage/scenarios/debug/inject-save", json=payload
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        called_payload = mock_debug.await_args.args[0]
+        assert called_payload["planner_output"]["title"] == "T"
+
+
+def test_get_step_run_report_endpoint(client, mock_repository):
+    run_id = str(uuid4())
+    mock_repository.get_generation_run_report.return_value = {
+        "run": {"id": run_id},
+        "steps": [{"checkpoint_id": "abc"}],
+        "logs": [{"status": "success"}],
+    }
+
+    response = client.get(f"/api/v1/generation/step/runs/{run_id}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["data"]["run"]["id"] == run_id
+
+
+def test_get_step_run_report_endpoint_invalid_run_id(client):
+    response = client.get("/api/v1/generation/step/runs/not-a-uuid")
+    assert response.status_code == 400

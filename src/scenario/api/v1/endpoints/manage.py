@@ -20,7 +20,10 @@ class TransitionRequest(BaseModel):
 
 
 class DebugInjectSaveRequest(BaseModel):
-    payload: Dict[str, Any]
+    payload: Dict[str, Any] | None = None
+    planner_output: Dict[str, Any] | None = None
+    writer_output: Dict[str, Any] | None = None
+    relation_output: Dict[str, Any] | None = None
     concept: str = "debug-direct-inject"
     inject_to_state: bool = True
 
@@ -78,8 +81,21 @@ async def debug_inject_and_save_scenario(
 ):
     """Debug-only: save scenario payload into scenario-service and optionally inject to state-manager."""
     try:
+        payload = request.payload
+        if payload is None:
+            stage_payload = {
+                "planner_output": request.planner_output,
+                "writer_output": request.writer_output,
+                "relation_output": request.relation_output,
+            }
+            if any(v is not None for v in stage_payload.values()):
+                payload = stage_payload
+            else:
+                raise ValueError(
+                    "payload is required (or provide planner_output/writer_output/relation_output)"
+                )
         return await engine.save_and_inject_debug(
-            request.payload,
+            payload,
             concept=request.concept,
             inject_to_state=request.inject_to_state,
         )

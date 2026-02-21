@@ -1,6 +1,7 @@
 import logging
 import re
 import uuid
+from inspect import isawaitable
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
@@ -442,6 +443,115 @@ class ScenarioEngine:
 
             return result
 
+    def _normalize_debug_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if any(
+            k in payload for k in ("planner_output", "writer_output", "relation_output")
+        ):
+            planner = payload.get("planner_output") or {}
+            writer = payload.get("writer_output") or {}
+            relation = payload.get("relation_output") or {}
+            payload = {
+                "title": planner.get("title", "DEBUG_SCENARIO"),
+                "description": planner.get("description", ""),
+                "summary": planner.get(
+                    "total_summary", planner.get("description", "")
+                ),
+                "difficulty": planner.get("difficulty", "normal"),
+                "genre": planner.get("genre", "debug"),
+                "tags": planner.get("tags", ["debug"]),
+                "total_acts": planner.get(
+                    "total_acts", len(planner.get("acts", []) or [])
+                ),
+                "acts": planner.get("acts", []),
+                "sequences": writer.get("sequences", []),
+                "npcs": planner.get("npc_manifest", []),
+                "enemies": planner.get("enemy_manifest", []),
+                "items": planner.get("item_manifest", []),
+                "relations": relation.get("relations", planner.get("relations", [])),
+            }
+
+        normalized = dict(payload)
+        normalized["npcs"] = self._normalize_debug_npcs(normalized.get("npcs", []))
+        normalized["enemies"] = self._normalize_debug_enemies(
+            normalized.get("enemies", [])
+        )
+        normalized["items"] = self._normalize_debug_items(normalized.get("items", []))
+        normalized["relations"] = [
+            {
+                "from_id": str(r.get("from_id", "")),
+                "to_id": str(r.get("to_id", "")),
+                "relation_type": r.get("relation_type", "neutral"),
+                "affinity": r.get("affinity", 50),
+                "meta": r.get("meta", {}),
+            }
+            for r in normalized.get("relations", []) or []
+            if r.get("from_id") and r.get("to_id")
+        ]
+        return normalized
+
+    def _normalize_debug_npcs(self, npcs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        out = []
+        for i, npc in enumerate(npcs or [], start=1):
+            npc_id = str(npc.get("scenario_npc_id") or npc.get("id") or f"npc-{i}")
+            out.append(
+                {
+                    **npc,
+                    "scenario_npc_id": npc_id,
+                    "name": npc.get("name", npc_id),
+                    "description": npc.get("description", npc.get("concept", "")),
+                    "role": npc.get("role", "supporting"),
+                    "location": npc.get("location", ""),
+                }
+            )
+        return out
+
+    def _normalize_debug_enemies(
+        self, enemies: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        out = []
+        for i, enemy in enumerate(enemies or [], start=1):
+            enemy_id = str(
+                enemy.get("scenario_enemy_id") or enemy.get("id") or f"enemy-{i}"
+            )
+            out.append(
+                {
+                    **enemy,
+                    "scenario_enemy_id": enemy_id,
+                    "name": enemy.get("name", enemy_id),
+                    "description": enemy.get(
+                        "description", enemy.get("concept", "")
+                    ),
+                    "stats": enemy.get(
+                        "stats", {"hp": 10, "attack": 5, "defense": 3}
+                    ),
+                    "skills": enemy.get("skills", []),
+                }
+            )
+        return out
+
+    def _normalize_debug_items(
+        self, items: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        out = []
+        for i, item in enumerate(items or [], start=1):
+            item_id = str(
+                item.get("scenario_item_id")
+                or item.get("item_id")
+                or item.get("id")
+                or f"item-{i}"
+            )
+            out.append(
+                {
+                    **item,
+                    "scenario_item_id": item_id,
+                    "name": item.get("name", item_id),
+                    "description": item.get("description", item.get("concept", "")),
+                    "item_type": item.get("item_type", "misc"),
+                    "effects": item.get("effects", []),
+                }
+            )
+        return out
+
     async def save_and_inject_debug(
         self,
         payload: Dict[str, Any],
@@ -452,7 +562,7 @@ class ScenarioEngine:
         if not isinstance(payload, dict):
             raise ValueError("payload must be an object")
 
-        normalized: Dict[str, Any] = dict(payload)
+        normalized: Dict[str, Any] = self._normalize_debug_payload(payload)
         normalized.setdefault("title", "DEBUG_SCENARIO")
         normalized.setdefault("summary", normalized.get("description", ""))
         normalized.setdefault("description", normalized.get("summary", ""))
@@ -489,7 +599,15 @@ class ScenarioEngine:
             normalized["total_acts"] = 1
 
         self._validate_state_payload_references(normalized)
-        scenario_id = await self.repository.save_scenario(concept, normalized)
+        replace_fn = getattr(self.repository, "save_or_replace_scenario_by_concept", None)
+        if callable(replace_fn):
+            maybe = replace_fn(concept, normalized)
+            if isawaitable(maybe):
+                scenario_id = await maybe
+            else:
+                scenario_id = await self.repository.save_scenario(concept, normalized)
+        else:
+            scenario_id = await self.repository.save_scenario(concept, normalized)
 
         result: Dict[str, Any] = {
             "status": "success",

@@ -20,7 +20,7 @@
    - 엔티티 내부 필드에 소유 정보를 적지 말고, 반드시 `relations` 리스트를 활용하십시오.
 
 [출력 형식]
-반드시 아래 스키마에 맞는 JSON만 출력하십시오:
+반드시 아래 스키마에 맞는 **단일 JSON 객체**만 출력하십시오:
 {
   "title": "시나리오 제목",
   "description": "시나리오 상세 설명",
@@ -48,8 +48,24 @@
   ]
 }
 
+[엄격 출력 규칙]
+1. 최상위는 반드시 **객체 1개**여야 합니다. 배열(`[]`)을 최상위로 출력하지 마십시오.
+2. 코드블록/설명문/주석/머리말을 출력하지 말고 JSON만 출력하십시오.
+3. 아래 필드는 **누락 금지**입니다(초기 생성 모드 기준):
+   - `title`, `description`, `difficulty`, `genre`, `tags`, `total_acts`,
+   - `acts`, `total_summary`, `npc_manifest`, `enemy_manifest`, `item_manifest`, `relations`
+4. 각 `acts[]` 원소는 반드시 다음 필드를 모두 포함해야 합니다:
+   - `id`, `name`, `region_name`, `description`, `goal`, `exit_criteria`, `sequences`
+5. `acts[].sequences`는 반드시 문자열 배열이어야 합니다. (예: `["seq-1","seq-2"]`)
+6. ID 규칙:
+   - `act-*`, `seq-*`, `npc-*`, `enemy-*`, `item-*` 형식 유지
+   - 문자열 ID만 사용 (숫자 단독 금지)
+7. `total_acts`는 `acts` 길이와 일치해야 합니다.
+8. `relations[].from_id`, `relations[].to_id`는 반드시 `npc/enemy/item manifest`에 존재하는 ID만 사용하십시오.
+
 [수정 모드(중요)]
 - 입력에 `current_plan`과 `previous_defects`가 제공되면, **지적된 결함(`defects`)이 있는 필드나 엔티티만 포함된 부분 JSON**을 출력하십시오.
 - 예를 들어 `act-1`의 목표만 문제라면 `acts: [{"id": "act-1", "goal": "수정된 목표"}]`와 같이 해당 객체만 포함합니다.
 - 정상적인 다른 데이터는 출력에서 제외하십시오. 시스템이 자동으로 병합합니다.
 - ID를 변경하지 마십시오.
+- 단, `current_plan`이 비어있거나 없는 초기 생성 요청에서는 반드시 전체 스키마를 완전하게 채워 출력하십시오.

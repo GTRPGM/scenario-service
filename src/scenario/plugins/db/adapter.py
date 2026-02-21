@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import uuid
 from typing import Any, Dict, List, Union
 from uuid import UUID
 
@@ -16,12 +17,18 @@ class PostgresScenarioAdapter(ScenarioRepository):
         self.db = db
         self.loader = loader
 
-    async def save_scenario(self, concept: str, data: Dict[str, Any]) -> UUID:
+    async def save_scenario(
+        self,
+        concept: str,
+        data: Dict[str, Any],
+        scenario_id: UUID | None = None,
+    ) -> UUID:
         self._validate_payload_references(data)
         print(f"💾 [DB] Starting save_scenario for: {data.get('title')}")
 
-        uuid_row = await self.db.fetchrow(self.loader.load_sql("generate_uuid"))
-        scenario_id = uuid_row["id"]
+        if scenario_id is None:
+            uuid_row = await self.db.fetchrow(self.loader.load_sql("generate_uuid"))
+            scenario_id = uuid_row["id"]
         scenario_id_str = str(scenario_id)
 
         await self.db.execute(
@@ -320,6 +327,33 @@ class PostgresScenarioAdapter(ScenarioRepository):
         print(f"✅ [DB] {len(data.get('relations', []))} Relations created.")
         return scenario_id
 
+    async def _delete_scenario_by_id(self, scenario_id: UUID | str) -> None:
+        sid = str(scenario_id)
+        await self.db.execute(
+            self.loader.load_cypher("delete_scenario_nodes"),
+            json.dumps({"scenario_id": sid}),
+        )
+        await self.db.execute(
+            self.loader.load_sql("delete_scenario_master"),
+            sid,
+        )
+
+    async def save_or_replace_scenario_by_concept(
+        self, concept: str, data: Dict[str, Any]
+    ) -> UUID:
+        rows = await self.db.fetch(
+            self.loader.load_sql("get_scenario_ids_by_concept"),
+            concept,
+        )
+        if not rows:
+            return await self.save_scenario(concept, data)
+
+        ordered_ids = [row["id"] for row in rows]
+        reuse_id = ordered_ids[0]
+        for sid in ordered_ids:
+            await self._delete_scenario_by_id(sid)
+        return await self.save_scenario(concept, data, scenario_id=reuse_id)
+
     def _validate_payload_references(self, data: Dict[str, Any]) -> None:
         acts = data.get("acts", []) or []
         sequences = data.get("sequences", []) or []
@@ -612,6 +646,113 @@ class PostgresScenarioAdapter(ScenarioRepository):
             return json.loads(value)
         except json.JSONDecodeError:
             return value
+
+    async def create_generation_run(self, concept: str | None) -> UUID:
+        uuid_row = await self.db.fetchrow(self.loader.load_sql("generate_uuid"))
+        run_id = uuid_row["id"]
+        await self.db.execute(
+            self.loader.load_sql("insert_generation_run"),
+            run_id,
+            concept,
+        )
+        return run_id
+
+    async def count_generation_requests_for_stage(
+        self, run_id: UUID | str, stage: str
+    ) -> int:
+        rid = run_id if isinstance(run_id, UUID) else UUID(str(run_id))
+        row = await self.db.fetchrow(
+            self.loader.load_sql("count_generation_requests_for_stage"),
+            rid,
+            stage,
+        )
+        return int(row["cnt"]) if row else 0
+
+    async def save_generation_step(
+        self,
+        *,
+        run_id: UUID | str,
+        checkpoint_id: str,
+        stage: str,
+        status: str,
+        attempt_count: int,
+        resolved_input: Dict[str, Any],
+        result: Dict[str, Any] | None,
+        error: str | None,
+    ) -> None:
+        rid = run_id if isinstance(run_id, UUID) else UUID(str(run_id))
+        await self.db.execute(
+            self.loader.load_sql("insert_generation_step"),
+            rid,
+            checkpoint_id,
+            stage,
+            status,
+            attempt_count,
+            json.dumps(resolved_input, ensure_ascii=False, default=str),
+            json.dumps(result, ensure_ascii=False, default=str)
+            if result is not None
+            else None,
+            error,
+        )
+
+    async def log_generation_request(
+        self,
+        *,
+        run_id: UUID | str | None,
+        stage: str,
+        endpoint: str,
+        request_payload: Dict[str, Any],
+        response_payload: Dict[str, Any] | None,
+        status: str,
+        retry_count: int,
+        error: str | None,
+    ) -> UUID:
+        request_id = uuid.uuid4()
+        rid: UUID | None
+        if run_id is None:
+            rid = None
+        elif isinstance(run_id, UUID):
+            rid = run_id
+        else:
+            rid = UUID(str(run_id))
+
+        await self.db.execute(
+            self.loader.load_sql("insert_generation_request_log"),
+            request_id,
+            rid,
+            stage,
+            endpoint,
+            json.dumps(request_payload, ensure_ascii=False, default=str),
+            json.dumps(response_payload, ensure_ascii=False, default=str)
+            if response_payload is not None
+            else None,
+            status,
+            retry_count,
+            error,
+        )
+        return request_id
+
+    async def get_generation_run_report(self, run_id: UUID | str) -> Dict[str, Any]:
+        rid = run_id if isinstance(run_id, UUID) else UUID(str(run_id))
+
+        run_row = await self.db.fetchrow(self.loader.load_sql("get_generation_run"), rid)
+        if not run_row:
+            return {}
+
+        step_rows = await self.db.fetch(
+            self.loader.load_sql("get_generation_steps_by_run"),
+            rid,
+        )
+        log_rows = await self.db.fetch(
+            self.loader.load_sql("get_generation_logs_by_run"),
+            rid,
+        )
+
+        return {
+            "run": dict(run_row),
+            "steps": [dict(r) for r in step_rows],
+            "logs": [dict(r) for r in log_rows],
+        }
 
     async def list_scenarios(self) -> List[Dict[str, Any]]:
         query = self.loader.load_cypher("list_scenarios")

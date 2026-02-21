@@ -34,6 +34,22 @@ async def get_validator_agent() -> ValidatorAgent:
     return ValidatorAgent(llm_model, prompt_loader)
 
 
+async def get_planner_agent() -> PlannerAgent:
+    return PlannerAgent(llm_model, prompt_loader)
+
+
+async def get_writer_agent() -> WriterAgent:
+    return WriterAgent(llm_model, prompt_loader)
+
+
+async def get_relation_agent() -> RelationAgent:
+    return RelationAgent(llm_model, prompt_loader)
+
+
+async def get_scenario_repository() -> PostgresScenarioAdapter:
+    return PostgresScenarioAdapter(db_handler, query_loader)
+
+
 async def get_scenario_engine() -> ScenarioEngine:
     """Dependency provider that wires agents, graph, and engine."""
     repository = PostgresScenarioAdapter(db_handler, query_loader)

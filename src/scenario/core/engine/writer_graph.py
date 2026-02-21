@@ -28,6 +28,9 @@ class AgentState(TypedDict):
     asset_consistent: bool
     writer_consistent: bool
     failed_asset_ids: List[str]
+    plan_attempts: Annotated[int, operator.add]
+    writer_attempts: Annotated[int, operator.add]
+    asset_attempts: Annotated[int, operator.add]
 
 
 class ScenarioWriterGraph:
@@ -124,6 +127,60 @@ class ScenarioWriterGraph:
 
         return graph.compile()
 
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _merge_by_id(existing: List[Dict], new: List[Dict], key: str) -> List[Dict]:
+        merged_map = {str(e.get(key)): e for e in existing if e.get(key)}
+        for n in new:
+            nid = str(n.get(key))
+            if nid:
+                merged_map[nid] = n
+        return list(merged_map.values())
+
+    @staticmethod
+    def _dedupe_relations(relations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        deduped: List[Dict[str, Any]] = []
+        seen = set()
+        for rel in relations:
+            if not isinstance(rel, dict):
+                continue
+            key = (
+                str(rel.get("from_id", "")),
+                str(rel.get("to_id", "")),
+                str(rel.get("relation_type", "neutral")),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(rel)
+        return deduped
+
+    @staticmethod
+    def _stabilize_sparse_sequences(plan: Dict[str, Any], result: Dict[str, Any]) -> None:
+        """Prevent empty/sparse sequence payloads from stalling downstream reviewers."""
+        npc_ids = [str(n.get("id")) for n in plan.get("npc_manifest", [])]
+        enemy_ids = [str(e.get("id")) for e in plan.get("enemy_manifest", [])]
+        if not isinstance(result.get("sequences"), list):
+            return
+
+        d_npc = npc_ids[0] if npc_ids else None
+        d_enemy = enemy_ids[0] if enemy_ids else None
+        for seq in result["sequences"]:
+            npcs = [str(x) for x in (seq.get("npcs") or [])]
+            enemies = [str(x) for x in (seq.get("enemies") or [])]
+            items = [str(x) for x in (seq.get("items") or [])]
+            if (len(npcs) + len(enemies) + len(items)) < 2:
+                if d_npc and d_npc not in npcs:
+                    npcs.append(d_npc)
+                if (len(npcs) + len(enemies) + len(items)) < 2 and d_enemy and d_enemy not in enemies:
+                    enemies.append(d_enemy)
+            seq["npcs"], seq["enemies"], seq["items"] = npcs, enemies, items
+
+    # ------------------------------------------------------------------
+    # Pipeline Nodes
+    # ------------------------------------------------------------------
     async def _planner_node(self, state: AgentState) -> Dict:
         print(f"📍 [Planner] Running... (Total Iter: {state.get('iterations', 0)})")
         current_plan = state.get("plan") or {}
@@ -165,10 +222,28 @@ class ScenarioWriterGraph:
 
         return {"plan": new_plan, "iterations": 1}
 
+    async def _plan_reviewer_node(self, state: AgentState) -> Dict:
+        print("🔎 [Reviewer] Inspecting Plan...")
+        if not self.plan_reviewer:
+            return {"plan_consistent": True}
+
+        result = await self.plan_reviewer.run({"plan": state.get("plan", {})})
+        is_consistent = bool(result.get("is_consistent"))
+        reviews = result.get("reviews", [])
+        defects = result.get("defects", [])
+        if not is_consistent:
+            print(f"❌ [Reviewer] Plan Rejected. Defects: {defects}")
+        else:
+            print("✅ [Reviewer] Plan Passed.")
+        return {
+            "plan_consistent": is_consistent,
+            "reviews": reviews,
+            "defects": defects,
+            "plan_attempts": 1,
+        }
+
     async def _writer_node(self, state: AgentState) -> Dict:
-        print(
-            f"📍 [Sequence Writer] Running... (Total Iter: {state.get('iterations', 0)})"
-        )
+        print(f"📍 [Sequence Writer] Running... (Total Iter: {state.get('iterations', 0)})")
         current_content = state.get("content") or {}
         defects = [d for d in state.get("defects", []) if "seq-" in str(d.get("id"))]
 
@@ -176,6 +251,7 @@ class ScenarioWriterGraph:
             {
                 "plan": state["plan"],
                 "previous_content": current_content,
+                "previous_reviews": state.get("reviews", []),
                 "previous_defects": defects,
                 "items": state.get("items", []),
                 "npcs": state.get("npcs", []),
@@ -184,21 +260,20 @@ class ScenarioWriterGraph:
             }
         )
 
-        # 시퀀스 병합 로직
-        new_sequences = {
-            str(s.get("id")): s for s in current_content.get("sequences", [])
-        }
-        if isinstance(result.get("sequences"), list):
-            for s in result["sequences"]:
-                sid = str(s.get("id"))
-                if sid:
-                    new_sequences[sid] = s
+        try:
+            self._stabilize_sparse_sequences(state.get("plan") or {}, result)
+        except Exception:
+            pass
 
-        # 관계 제안 병합
-        all_relations = (state["plan"].get("relations") or []) + (
-            result.get("relations") or []
-        )
-        state["plan"]["relations"] = all_relations
+        new_sequences = {str(s.get("id")): s for s in current_content.get("sequences", [])}
+        if isinstance(result.get("sequences"), list):
+            for seq in result["sequences"]:
+                sid = str(seq.get("id"))
+                if sid:
+                    new_sequences[sid] = seq
+
+        all_relations = (state["plan"].get("relations") or []) + (result.get("relations") or [])
+        state["plan"]["relations"] = self._dedupe_relations(all_relations)
 
         return {"content": {"sequences": list(new_sequences.values())}, "iterations": 1}
 
@@ -296,20 +371,14 @@ class ScenarioWriterGraph:
             }
         )
 
-        def merge(existing: List[Dict], new: List[Dict], key: str) -> List[Dict]:
-            merged_map = {str(e.get(key)): e for e in existing if e.get(key)}
-            for n in new:
-                nid = str(n.get(key))
-                if nid:
-                    merged_map[nid] = n
-            return list(merged_map.values())
-
         return {
-            "items": merge(state.get("items", []), result.get("items", []), "item_id"),
-            "npcs": merge(
+            "items": self._merge_by_id(
+                state.get("items", []), result.get("items", []), "item_id"
+            ),
+            "npcs": self._merge_by_id(
                 state.get("npcs", []), result.get("npcs", []), "scenario_npc_id"
             ),
-            "enemies": merge(
+            "enemies": self._merge_by_id(
                 state.get("enemies", []), result.get("enemies", []), "scenario_enemy_id"
             ),
             "iterations": 1,
@@ -342,54 +411,8 @@ class ScenarioWriterGraph:
             "reviews": reviews,
             "defects": defects,
             "failed_asset_ids": failed_ids,
+            "asset_attempts": 1,
         }
-
-    async def _writer_node(self, state: AgentState) -> Dict:
-        print(
-            f"📍 [Sequence Writer] Running... (Total Iter: {state.get('iterations', 0)})"
-        )
-        result = await self.writer.run(
-            {
-                "plan": state["plan"],
-                "previous_content": state.get("content", {}),
-                "previous_reviews": state.get("reviews", []),
-                "previous_defects": state.get("defects", []),
-                "items": state.get("items", []),
-                "npcs": state.get("npcs", []),
-                "enemies": state.get("enemies", []),
-                "assets": state.get("assets", {}),
-            }
-        )
-        try:
-            plan = state.get("plan") or {}
-            npc_ids = [str(n.get("id")) for n in plan.get("npc_manifest", [])]
-            enemy_ids = [str(e.get("id")) for e in plan.get("enemy_manifest", [])]
-            item_ids = [str(i.get("id")) for i in plan.get("item_manifest", [])]
-            if isinstance(result.get("sequences"), list):
-                d_npc, d_enemy, d_item = (
-                    (npc_ids[0] if npc_ids else None),
-                    (enemy_ids[0] if enemy_ids else None),
-                    (item_ids[0] if item_ids else None),
-                )
-                for s in result["sequences"]:
-                    n, e, i = (
-                        [str(x) for x in (s.get("npcs") or [])],
-                        [str(x) for x in (s.get("enemies") or [])],
-                        [str(x) for x in (s.get("items") or [])],
-                    )
-                    if (len(n) + len(e) + len(i)) < 2:
-                        if d_npc and d_npc not in n:
-                            n.append(d_npc)
-                        if (
-                            (len(n) + len(e) + len(i)) < 2
-                            and d_enemy
-                            and d_enemy not in e
-                        ):
-                            e.append(d_enemy)
-                    s["npcs"], s["enemies"], s["items"] = n, e, i
-        except:
-            pass
-        return {"content": result, "iterations": 1}
 
     async def _writer_reviewer_node(self, state: AgentState) -> Dict:
         print("🔎 [Reviewer] Inspecting Sequences...")
@@ -409,6 +432,7 @@ class ScenarioWriterGraph:
             "writer_consistent": is_consistent,
             "reviews": reviews,
             "defects": defects,
+            "writer_attempts": 1,
         }
 
     async def _grounder_node(self, state: AgentState) -> Dict:
@@ -433,25 +457,27 @@ class ScenarioWriterGraph:
             "iterations": 1,
         }
 
+    # ------------------------------------------------------------------
     # Conditional Edges
+    # ------------------------------------------------------------------
     def _should_continue_plan(self, state: AgentState) -> str:
         if state["plan_consistent"]:
             return "next"
-        if state["iterations"] >= 15:
+        if state["plan_attempts"] >= 3:
             return "end"
         return "continue"
 
     def _should_continue_asset(self, state: AgentState) -> str:
         if state["asset_consistent"]:
             return "next"
-        if state["iterations"] >= 15:
+        if state["asset_attempts"] >= 3:
             return "end"
         return "continue"
 
     def _should_continue_writer(self, state: AgentState) -> str:
         if state["writer_consistent"]:
             return "next"
-        if state["iterations"] >= 15:
+        if state["writer_attempts"] >= 3:
             return "end"
         return "continue"
 
@@ -460,6 +486,9 @@ class ScenarioWriterGraph:
             return "end"
         return "continue"
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
     async def run(self, concept: str, assets: Optional[Dict] = None) -> Dict:
         return await self.workflow.ainvoke(
             {
@@ -478,5 +507,8 @@ class ScenarioWriterGraph:
                 "asset_consistent": False,
                 "writer_consistent": False,
                 "failed_asset_ids": [],
+                "plan_attempts": 0,
+                "writer_attempts": 0,
+                "asset_attempts": 0,
             }
         )
